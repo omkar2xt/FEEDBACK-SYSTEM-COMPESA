@@ -12,7 +12,7 @@ export default defineConfig({
           if (id.includes("exceljs")) return "exceljs";
           if (id.includes("recharts") || id.includes("chart.js")) return "charts";
           if (id.includes("three")) return "three";
-          if (id.includes("firebase")) return "firebase";
+          if (id.includes("@supabase/supabase-js")) return "supabase";
           if (id.includes("framer-motion")) return "motion";
           if (id.includes("gsap")) return "gsap";
           return "vendor";

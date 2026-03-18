@@ -2,49 +2,39 @@
 
 ## Quick Setup (5 minutes)
 
-Your feedback form is ready to collect responses! Just need to configure Firebase for response storage.
+Your feedback form is ready to collect responses. Configure Supabase for response storage.
 
-### Step 1: Create Firebase Project (1 minute)
+### Step 1: Create Supabase Project (1 minute)
 
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Click "Create Project"
+1. Go to [Supabase](https://supabase.com)
+2. Click "New project"
 3. Name it (e.g., "Programming Session Feedback")
-4. Click "Create Project"
+4. Wait for the project to finish provisioning
 
-### Step 2: Add Web App to Firebase (2 minutes)
+### Step 2: Get API Credentials (1 minute)
 
-1. Click the Web icon ( </> ) to add a web app
-2. Give it a name (e.g., "Feedback Form")
-3. Copy the Firebase config (you'll see the credentials)
-4. Click "Continue to console"
+1. Open your Supabase project dashboard
+2. Go to **Project Settings -> API**
+3. Copy **Project URL** and **anon public key**
 
-### Step 3: Set Up Firebase Database (1 minute)
+### Step 3: Create Database Schema (2 minutes)
 
-1. In Firebase Console, go to **Firestore Database**
-2. Click "Create Database"
-3. Select **"Start in test mode"** (for development)
-4. Choose a region closest to you
-5. Click "Create"
+1. In Supabase, go to **SQL Editor**
+2. Paste the SQL schema for table `public.feedback`
+3. Run it to create table, indexes, and RLS policies
 
 ### Step 4: Configure Your App (1 minute)
 
 1. In your project folder, create a `.env` file:
 
 ```bash
-# Copy the credentials from Firebase Console (Web app config)
-
-VITE_FIREBASE_API_KEY=your_key_here
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
 ```
 
 **Where to find these values:**
-- Go to Firebase Console → Project Settings (gear icon)
-- Under "Your apps" → Web app config
-- Copy each value into your `.env` file
+- Supabase Dashboard -> Project Settings -> API
+- Copy Project URL and anon public key
 
 ### Step 5: Start the App
 
@@ -56,10 +46,10 @@ Visit **http://localhost:5173/** and start collecting feedback!
 
 ## How Responses Are Stored
 
-✅ **Automatic Firestore Storage**
-- Each response is automatically saved to your Firebase database
+✅ **Automatic Supabase Storage**
+- Each response is automatically saved to your Supabase Postgres database
 - Responses appear in real-time on the analytics dashboard
-- Data is stored in a "feedback" collection in Firestore
+- Data is stored in the `public.feedback` table in Supabase
 
 ✅ **What Gets Stored**
 - Name & email
@@ -71,9 +61,9 @@ Visit **http://localhost:5173/** and start collecting feedback!
 - AI sentiment analysis
 - Timestamp
 
-✅ **View Responses in Firebase**
-1. Go to Firebase Console → Firestore Database
-2. Click the "feedback" collection
+✅ **View Responses in Supabase**
+1. Go to Supabase Dashboard -> Table Editor
+2. Open the `feedback` table
 3. See all submitted responses in real-time
 
 ## Optional: Enable AI Sentiment Analysis
@@ -115,14 +105,13 @@ npm run preview  # Test the build
 ## Troubleshooting
 
 **Responses not saving?**
-- ✅ Check `.env` has correct Firebase credentials
-- ✅ Verify Firestore Database is created in Firebase Console
+- ✅ Check `.env` has correct Supabase credentials
+- ✅ Verify `feedback` table exists in Supabase
 - ✅ Check browser console (F12 → Console) for errors
 
-**Getting "permission-denied" error?**
-- ✅ Go to Firebase → Firestore Database → Rules
-- ✅ Make sure it says "Start in test mode" or has public read/write
-- ✅ Rules expire after 30 days; update them before production
+**Getting permission errors?**
+- ✅ Check Supabase RLS policies on `public.feedback`
+- ✅ Ensure insert/select policies allow your app role (anon/authenticated)
 
 **Form won't load?**
 - ✅ Wait for `npm run dev` to show "ready in Xms"
@@ -131,7 +120,7 @@ npm run preview  # Test the build
 
 ## Support
 
-- **Firebase Docs**: https://firebase.google.com/docs/firestore
+- **Supabase Docs**: https://supabase.com/docs
 - **Vite Docs**: https://vitejs.dev
 - **React Docs**: https://react.dev
 

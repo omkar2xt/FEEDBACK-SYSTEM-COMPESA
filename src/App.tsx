@@ -224,7 +224,7 @@ export default function App() {
             ) : adminLoading ? (
               <section className="rounded-2xl border border-white/15 bg-panel p-6 text-center shadow-glass backdrop-blur-xl">
                 <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-                <p className="mt-3 text-sm text-cyan-100">Loading feedback from Firebase...</p>
+                <p className="mt-3 text-sm text-cyan-100">Loading feedback from Supabase...</p>
               </section>
             ) : adminError ? (
               <section className="rounded-2xl border border-rose-300/30 bg-rose-500/10 p-6 text-center backdrop-blur-xl">

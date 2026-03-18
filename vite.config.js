@@ -20,8 +20,8 @@ export default defineConfig({
                         return "charts";
                     if (hasPackage("three"))
                         return "three";
-                    if (hasPackage("firebase"))
-                        return "firebase";
+                    if (hasPackage("@supabase/supabase-js"))
+                        return "supabase";
                     if (hasPackage("framer-motion"))
                         return "motion";
                     if (hasPackage("gsap"))

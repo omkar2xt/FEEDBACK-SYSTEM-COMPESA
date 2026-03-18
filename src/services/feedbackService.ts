@@ -1,20 +1,36 @@
-import {
-  addDoc,
-  collection,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  type DocumentData,
-  type QueryDocumentSnapshot,
-  type Unsubscribe
-} from "firebase/firestore";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { FeedbackRecord } from "../types";
-import { db } from "./firebase";
-
-const feedbackCollection = collection(db, "feedback");
+import { supabase } from "./supabase";
 const RETRY_QUEUE_KEY = "feedback_retry_queue_v1";
+
+type Unsubscribe = () => void;
+
+interface FeedbackRow {
+  id: string;
+  name: string;
+  email: string;
+  mood: FeedbackRecord["mood"];
+  rating: number;
+  category: FeedbackRecord["category"];
+  message: string;
+  would_recommend: boolean;
+  follow_up: string | null;
+  overall_experience: FeedbackRecord["overallExperience"];
+  learning_outcome: FeedbackRecord["learningOutcome"];
+  most_useful_topic: FeedbackRecord["mostUsefulTopic"];
+  clarity: FeedbackRecord["clarity"];
+  engagement: FeedbackRecord["engagement"];
+  speaker_support: FeedbackRecord["speakerSupport"];
+  impact_plan: FeedbackRecord["impactPlan"];
+  impact_plans: FeedbackRecord["impactPlans"] | null;
+  recommendation: FeedbackRecord["recommendation"];
+  suggestions: string | null;
+  sentiment: FeedbackRecord["sentiment"];
+  sentiment_score: number;
+  summary: string;
+  created_at_client: number | null;
+  created_at: string;
+}
 
 function readRetryQueue(): FeedbackRecord[] {
   try {
@@ -37,58 +53,89 @@ function writeRetryQueue(records: FeedbackRecord[]) {
 
 function enqueueForRetry(record: FeedbackRecord) {
   const queued = readRetryQueue();
-  queued.push(record);
-  writeRetryQueue(queued);
+  const key = record.id || String(record.createdAt);
+  const filtered = queued.filter((item) => (item.id || String(item.createdAt)) !== key);
+  filtered.push(record);
+  writeRetryQueue(filtered);
 }
 
-function normalizeRecord(doc: QueryDocumentSnapshot<DocumentData>): FeedbackRecord {
-  const data = doc.data();
-  const createdAtMillis =
-    data.createdAt?.toMillis?.() ||
-    (typeof data.createdAt?.seconds === "number" ? data.createdAt.seconds * 1000 : undefined) ||
-    data.createdAtClient ||
-    Date.now();
-
+function normalizeRecord(row: FeedbackRow): FeedbackRecord {
   return {
-    id: doc.id,
-    name: data.name || "",
-    email: data.email || "",
-    mood: data.mood || "neutral",
-    rating: data.rating || 0,
-    category: data.category || "UX",
-    message: data.message || "",
-    wouldRecommend: Boolean(data.wouldRecommend),
-    followUp: data.followUp || "",
-    overallExperience: data.overallExperience || "Good",
-    learningOutcome: data.learningOutcome || "Some useful things",
-    mostUsefulTopic: data.mostUsefulTopic || "Mini Projects",
-    clarity: data.clarity || "Somewhat clear",
-    engagement: data.engagement || "Okay",
-    speakerSupport: data.speakerSupport || "Good",
-    impactPlan: data.impactPlan || "Improving skills",
-    impactPlans: Array.isArray(data.impactPlans) ? data.impactPlans : [data.impactPlan || "Improving skills"],
-    recommendation: data.recommendation || "Yes",
-    suggestions: data.suggestions || "",
-    sentiment: data.sentiment || "Neutral",
-    sentimentScore: data.sentimentScore || 0.5,
-    summary: data.summary || "",
-    createdAt: createdAtMillis
+    id: row.id,
+    name: row.name || "",
+    email: row.email || "",
+    mood: row.mood || "neutral",
+    rating: row.rating || 0,
+    category: row.category || "UX",
+    message: row.message || "",
+    wouldRecommend: Boolean(row.would_recommend),
+    followUp: row.follow_up || "",
+    overallExperience: row.overall_experience || "Good",
+    learningOutcome: row.learning_outcome || "Some useful things",
+    mostUsefulTopic: row.most_useful_topic || "Mini Projects",
+    clarity: row.clarity || "Somewhat clear",
+    engagement: row.engagement || "Okay",
+    speakerSupport: row.speaker_support || "Good",
+    impactPlan: row.impact_plan || "Improving skills",
+    impactPlans: Array.isArray(row.impact_plans) ? row.impact_plans : [row.impact_plan || "Improving skills"],
+    recommendation: row.recommendation || "Yes",
+    suggestions: row.suggestions || "",
+    sentiment: row.sentiment || "Neutral",
+    sentimentScore: row.sentiment_score || 0.5,
+    summary: row.summary || "",
+    createdAt: row.created_at_client || Date.parse(row.created_at) || Date.now()
   };
 }
 
 export async function saveFeedback(record: FeedbackRecord) {
-  await addDoc(feedbackCollection, {
-    ...record,
-    createdAtClient: record.createdAt,
-    createdAt: serverTimestamp()
-  });
+  const fallbackId = `${record.createdAt}-${Math.abs(record.name.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0))}`;
+  const docId = record.id || fallbackId;
+
+  const payload = {
+    id: docId,
+    name: record.name,
+    email: record.email,
+    mood: record.mood,
+    rating: record.rating,
+    category: record.category,
+    message: record.message,
+    would_recommend: record.wouldRecommend,
+    follow_up: record.followUp || null,
+    overall_experience: record.overallExperience,
+    learning_outcome: record.learningOutcome,
+    most_useful_topic: record.mostUsefulTopic,
+    clarity: record.clarity,
+    engagement: record.engagement,
+    speaker_support: record.speakerSupport,
+    impact_plan: record.impactPlan,
+    impact_plans: record.impactPlans,
+    recommendation: record.recommendation,
+    suggestions: record.suggestions || null,
+    sentiment: record.sentiment,
+    sentiment_score: record.sentimentScore,
+    summary: record.summary,
+    created_at_client: record.createdAt
+  };
+
+  const { error } = await supabase.from("feedback").upsert(payload, { onConflict: "id" });
+  if (error) {
+    throw error;
+  }
 }
 
-export function saveFeedbackDeferred(record: FeedbackRecord) {
-  // Fire-and-forget save to keep submit UX instant; enqueue locally if network fails.
-  void saveFeedback(record).catch(() => {
-    enqueueForRetry(record);
+export async function saveFeedbackDeferred(record: FeedbackRecord, timeoutMs = 3500): Promise<"saved" | "queued"> {
+  // Keep UX fast: if write fails or exceeds timeout, queue locally and sync later.
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("submit-timeout")), timeoutMs);
   });
+
+  try {
+    await Promise.race([saveFeedback(record), timeout]);
+    return "saved";
+  } catch {
+    enqueueForRetry(record);
+    return "queued";
+  }
 }
 
 export async function flushQueuedFeedback() {
@@ -108,24 +155,48 @@ export async function flushQueuedFeedback() {
 }
 
 export async function fetchFeedback(): Promise<FeedbackRecord[]> {
-  const q = query(feedbackCollection, orderBy("createdAt", "desc"));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(normalizeRecord);
+  const { data, error } = await supabase
+    .from("feedback")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map((row) => normalizeRecord(row as FeedbackRow));
 }
 
 export function subscribeFeedbackRealtime(
   callback: (records: FeedbackRecord[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(feedbackCollection, orderBy("createdAt", "desc"));
+  let channel: RealtimeChannel | null = null;
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      callback(snapshot.docs.map(normalizeRecord));
-    },
-    (error) => {
-      onError?.(error);
+  const load = async () => {
+    try {
+      callback(await fetchFeedback());
+    } catch (error) {
+      onError?.(error as Error);
     }
-  );
+  };
+
+  void load();
+
+  channel = supabase
+    .channel("feedback-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => {
+      void load();
+    })
+    .subscribe((status) => {
+      if (status === "CHANNEL_ERROR") {
+        onError?.(new Error("Supabase realtime channel error."));
+      }
+    });
+
+  return () => {
+    if (channel) {
+      void supabase.removeChannel(channel);
+    }
+  };
 }

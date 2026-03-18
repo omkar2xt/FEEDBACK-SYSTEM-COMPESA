@@ -74,6 +74,7 @@ export function SessionFeedbackWizard({ draft, setDraft, onSubmitted, click, suc
     const score = draft.rating / 5;
     const payload = {
       ...draft,
+      id: globalThis.crypto?.randomUUID?.() || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       wouldRecommend: draft.recommendation === "Yes",
       sentiment,
       sentimentScore: score,
@@ -81,7 +82,7 @@ export function SessionFeedbackWizard({ draft, setDraft, onSubmitted, click, suc
       createdAt: Date.now()
     };
 
-    saveFeedbackDeferred(payload);
+    const saveState = await saveFeedbackDeferred(payload, 3200);
 
     confetti({
       particleCount: 140,
@@ -92,6 +93,10 @@ export function SessionFeedbackWizard({ draft, setDraft, onSubmitted, click, suc
 
     success();
     onSubmitted();
+    if (saveState === "queued") {
+      // Non-blocking warning for slow/offline networks; record will auto-sync on next focus/start.
+      console.warn("Feedback queued for retry because cloud submit was slow or unavailable.");
+    }
     setSubmitting(false);
   };
 

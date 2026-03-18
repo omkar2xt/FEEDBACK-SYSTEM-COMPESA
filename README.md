@@ -18,7 +18,7 @@ Production-ready web application for collecting and managing student session fee
   - Average rating, total responses, most selected topic
   - Auto-generated summary/conclusion
   - Download feedback as Excel (`.xlsx`)
-- Firebase Firestore cloud storage for global cross-device data access
+- Supabase Postgres cloud storage for global cross-device data access
 - Fully responsive dark-themed glassmorphism UI
 
 ## Tech Stack
@@ -27,7 +27,7 @@ Production-ready web application for collecting and managing student session fee
 - Tailwind CSS
 - Framer Motion + GSAP
 - Recharts
-- Firebase Firestore
+- Supabase
 - ExcelJS
 - Three.js (ambient background)
 
@@ -45,21 +45,16 @@ npm install
 cp .env.example .env
 ```
 
-3. Fill Firebase variables in `.env`:
+3. Fill Supabase variables in `.env`:
 
 ```env
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
 ```
 
 Optional:
 
 ```env
-VITE_FIREBASE_MEASUREMENT_ID=...
 VITE_OPENAI_PROXY_ENDPOINT=/api/analyze
 ```
 
@@ -69,27 +64,12 @@ VITE_OPENAI_PROXY_ENDPOINT=/api/analyze
 npm run dev
 ```
 
-## Firebase Notes
+## Supabase Notes
 
-- Collection used: `feedback`
-- Write flow: `addDoc(collection(db, "feedback"), {..., createdAt: serverTimestamp() })`
-- Admin fetch flow: `getDocs(collection(db, "feedback"))`
-- Optional realtime sync: `onSnapshot(...)`
-
-### Demo Firestore Rules
-
-Use permissive rules only for demo/testing:
-
-```txt
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /feedback/{document=**} {
-      allow read, write: if true;
-    }
-  }
-}
-```
+- Table used: `public.feedback`
+- Write flow: `upsert` to `feedback` with conflict key `id`
+- Admin fetch flow: `select * from feedback order by created_at desc`
+- Optional realtime sync: Supabase Realtime on `public.feedback`
 
 ## Build
 
@@ -100,8 +80,8 @@ npm run build
 ## Deploy (Vercel / Netlify)
 
 - Deploy frontend normally from this repo.
-- Add same `VITE_FIREBASE_*` variables in hosting environment settings.
-- Firebase serves as backend database (no custom server required).
+- Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in hosting environment settings.
+- Supabase serves as backend database (no custom server required).
 
 ## Project Structure
 
@@ -109,5 +89,5 @@ npm run build
 - `src/components/SessionFeedbackWizard.tsx` - user form flow
 - `src/components/AdminLogin.tsx` - admin authentication UI
 - `src/components/AdminDashboard.tsx` - admin analytics + table + export
-- `src/services/firebase.ts` - Firebase initialization
-- `src/services/feedbackService.ts` - Firestore read/write service layer
+- `src/services/supabase.ts` - Supabase client initialization
+- `src/services/feedbackService.ts` - Supabase read/write service layer

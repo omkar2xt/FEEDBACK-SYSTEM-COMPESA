@@ -10,10 +10,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.54.0",
     "canvas-confetti": "^1.9.3",
     "chart.js": "^4.4.7",
     "exceljs": "^4.4.0",
-    "firebase": "^11.6.0",
     "framer-motion": "^12.6.0",
     "gsap": "^3.12.7",
     "lucide-react": "^0.507.0",

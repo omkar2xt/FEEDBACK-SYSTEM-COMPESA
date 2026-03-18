@@ -12,6 +12,7 @@
   "dependencies": {
     "canvas-confetti": "^1.9.3",
     "chart.js": "^4.4.7",
+    "exceljs": "^4.4.0",
     "firebase": "^11.6.0",
     "framer-motion": "^12.6.0",
     "gsap": "^3.12.7",
@@ -21,8 +22,7 @@
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.1.0",
     "recharts": "^3.8.0",
-    "three": "^0.175.0",
-    "xlsx": "^0.18.5"
+    "three": "^0.175.0"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",

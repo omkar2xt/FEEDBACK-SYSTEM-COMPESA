@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { CursorGlow } from "./components/CursorGlow";
-import { AdminDashboard } from "./components/AdminDashboard";
 import { AdminLogin } from "./components/AdminLogin";
 import { SessionFeedbackWizard } from "./components/SessionFeedbackWizard";
 import { SessionSummary } from "./components/SessionSummary";
@@ -13,6 +12,11 @@ import { useLocalProgress } from "./hooks/useLocalProgress";
 import { useSound } from "./hooks/useSound";
 import { fetchFeedback, subscribeFeedbackRealtime } from "./services/feedbackService";
 import type { FeedbackRecord } from "./types";
+
+const AdminDashboard = lazy(async () => {
+  const mod = await import("./components/AdminDashboard");
+  return { default: mod.AdminDashboard };
+});
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -216,7 +220,16 @@ export default function App() {
                 <p className="text-sm text-rose-200">{adminError}</p>
               </section>
             ) : (
-              <AdminDashboard records={records} onLogout={() => setAdminAuthenticated(false)} />
+              <Suspense
+                fallback={
+                  <section className="rounded-2xl border border-white/15 bg-panel p-6 text-center shadow-glass backdrop-blur-xl">
+                    <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                    <p className="mt-3 text-sm text-cyan-100">Loading dashboard...</p>
+                  </section>
+                }
+              >
+                <AdminDashboard records={records} onLogout={() => setAdminAuthenticated(false)} />
+              </Suspense>
             )}
           </motion.div>
         )}

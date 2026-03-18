@@ -28,7 +28,7 @@ Production-ready web application for collecting and managing student session fee
 - Framer Motion + GSAP
 - Recharts
 - Firebase Firestore
-- XLSX
+- ExcelJS
 - Three.js (ambient background)
 
 ## Local Setup

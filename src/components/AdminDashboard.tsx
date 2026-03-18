@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import { useMemo, useState } from "react";
 import {
   Bar,
@@ -72,8 +71,10 @@ export function AdminDashboard({ records, onLogout }: AdminDashboardProps) {
     return `Most students found the session useful and rated it ${sentiment}.`;
   }, [filtered]);
 
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     if (!filtered.length) return;
+
+    const ExcelJS = await import("exceljs");
     const rows = filtered.map((record) => ({
       Name: record.name,
       Experience: record.overallExperience,
@@ -88,10 +89,39 @@ export function AdminDashboard({ records, onLogout }: AdminDashboardProps) {
       SubmittedAt: new Date(record.createdAt).toLocaleString()
     }));
 
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, "Feedback");
-    XLSX.writeFile(workbook, `student-feedback-${new Date().toISOString().split("T")[0]}.xlsx`);
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Feedback");
+
+    sheet.columns = [
+      { header: "Name", key: "Name", width: 24 },
+      { header: "Experience", key: "Experience", width: 14 },
+      { header: "Rating", key: "Rating", width: 10 },
+      { header: "Topic", key: "Topic", width: 22 },
+      { header: "Clarity", key: "Clarity", width: 10 },
+      { header: "Engagement", key: "Engagement", width: 12 },
+      { header: "Speaker", key: "Speaker", width: 10 },
+      { header: "Feedback", key: "Feedback", width: 42 },
+      { header: "Suggestions", key: "Suggestions", width: 32 },
+      { header: "Recommendation", key: "Recommendation", width: 16 },
+      { header: "SubmittedAt", key: "SubmittedAt", width: 24 }
+    ];
+
+    rows.forEach((row) => {
+      sheet.addRow(row);
+    });
+
+    const data = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `student-feedback-${new Date().toISOString().split("T")[0]}.xlsx`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (

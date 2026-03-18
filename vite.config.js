@@ -7,19 +7,24 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks(id) {
-                    if (!id.includes("node_modules"))
+                    const normalizedId = id.replace(/\\/g, "/");
+                    const inNodeModules = normalizedId.includes("/node_modules/");
+                    if (!inNodeModules)
                         return;
-                    if (id.includes("exceljs"))
+
+                    const hasPackage = (pkgName) => new RegExp(`(^|/)node_modules/${pkgName}(/|$)`).test(normalizedId);
+
+                    if (hasPackage("exceljs"))
                         return "exceljs";
-                    if (id.includes("recharts") || id.includes("chart.js"))
+                    if (hasPackage("recharts") || hasPackage("chart\\.js"))
                         return "charts";
-                    if (id.includes("three"))
+                    if (hasPackage("three"))
                         return "three";
-                    if (id.includes("firebase"))
+                    if (hasPackage("firebase"))
                         return "firebase";
-                    if (id.includes("framer-motion"))
+                    if (hasPackage("framer-motion"))
                         return "motion";
-                    if (id.includes("gsap"))
+                    if (hasPackage("gsap"))
                         return "gsap";
                     return "vendor";
                 }

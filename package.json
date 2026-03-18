@@ -1,0 +1,40 @@
+{
+  "name": "premium-feedback-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.3",
+    "chart.js": "^4.4.7",
+    "firebase": "^11.6.0",
+    "framer-motion": "^12.6.0",
+    "gsap": "^3.12.7",
+    "lucide-react": "^0.507.0",
+    "openai": "^4.93.0",
+    "react": "^19.1.0",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^3.8.0",
+    "three": "^0.175.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@types/three": "^0.175.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.1"
+  }
+}

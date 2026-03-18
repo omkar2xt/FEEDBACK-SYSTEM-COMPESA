@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Sora", "Space Grotesk", "Segoe UI", sans-serif;
+  color-scheme: dark;
+  --panel: rgba(12, 17, 39, 0.68);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background-size: 220% 220%;
+  animation: gradientShift 14s ease infinite;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(39, 244, 241, 0.7), rgba(63, 125, 255, 0.7));
+  border-radius: 999px;
+}

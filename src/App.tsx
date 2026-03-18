@@ -10,7 +10,7 @@ import { MagneticButton } from "./components/MagneticButton";
 import { ThreeBackground } from "./components/ThreeBackground";
 import { useLocalProgress } from "./hooks/useLocalProgress";
 import { useSound } from "./hooks/useSound";
-import { fetchFeedback, subscribeFeedbackRealtime } from "./services/feedbackService";
+import { fetchFeedback, flushQueuedFeedback, subscribeFeedbackRealtime } from "./services/feedbackService";
 import type { FeedbackRecord } from "./types";
 
 const AdminDashboard = lazy(async () => {
@@ -30,6 +30,17 @@ export default function App() {
   const [records, setRecords] = useState<FeedbackRecord[]>([]);
   const { draft, setDraft, clearDraft } = useLocalProgress();
   const sounds = useSound();
+
+  useEffect(() => {
+    void flushQueuedFeedback();
+
+    const onFocus = () => {
+      void flushQueuedFeedback();
+    };
+
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   useEffect(() => {
     if (activePanel !== "admin" || !adminAuthenticated) {

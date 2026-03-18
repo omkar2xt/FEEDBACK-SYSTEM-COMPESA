@@ -14,6 +14,32 @@ import type { FeedbackRecord } from "../types";
 import { db } from "./firebase";
 
 const feedbackCollection = collection(db, "feedback");
+const RETRY_QUEUE_KEY = "feedback_retry_queue_v1";
+
+function readRetryQueue(): FeedbackRecord[] {
+  try {
+    const raw = localStorage.getItem(RETRY_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as FeedbackRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRetryQueue(records: FeedbackRecord[]) {
+  if (!records.length) {
+    localStorage.removeItem(RETRY_QUEUE_KEY);
+    return;
+  }
+  localStorage.setItem(RETRY_QUEUE_KEY, JSON.stringify(records));
+}
+
+function enqueueForRetry(record: FeedbackRecord) {
+  const queued = readRetryQueue();
+  queued.push(record);
+  writeRetryQueue(queued);
+}
 
 function normalizeRecord(doc: QueryDocumentSnapshot<DocumentData>): FeedbackRecord {
   const data = doc.data();
@@ -56,6 +82,29 @@ export async function saveFeedback(record: FeedbackRecord) {
     createdAtClient: record.createdAt,
     createdAt: serverTimestamp()
   });
+}
+
+export function saveFeedbackDeferred(record: FeedbackRecord) {
+  // Fire-and-forget save to keep submit UX instant; enqueue locally if network fails.
+  void saveFeedback(record).catch(() => {
+    enqueueForRetry(record);
+  });
+}
+
+export async function flushQueuedFeedback() {
+  const queued = readRetryQueue();
+  if (!queued.length) return;
+
+  const remaining: FeedbackRecord[] = [];
+  for (const record of queued) {
+    try {
+      await saveFeedback(record);
+    } catch {
+      remaining.push(record);
+    }
+  }
+
+  writeRetryQueue(remaining);
 }
 
 export async function fetchFeedback(): Promise<FeedbackRecord[]> {

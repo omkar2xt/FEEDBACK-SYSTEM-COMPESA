@@ -2,8 +2,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { Dispatch, SetStateAction } from "react";
 import { useState } from "react";
-import { saveFeedback } from "../services/feedbackService";
-import type { FeedbackInput } from "../types";
+import { saveFeedbackDeferred } from "../services/feedbackService";
+import type { FeedbackInput, FeedbackRecord } from "../types";
 import { LiquidProgress } from "./LiquidProgress";
 import { MagneticButton } from "./MagneticButton";
 import { StarRating } from "./StarRating";
@@ -70,33 +70,29 @@ export function SessionFeedbackWizard({ draft, setDraft, onSubmitted, click, suc
     setSubmitting(true);
     setError("");
 
-    const sentiment = draft.rating >= 4 ? "Positive" : draft.rating <= 2 ? "Negative" : "Neutral";
+    const sentiment: FeedbackRecord["sentiment"] = draft.rating >= 4 ? "Positive" : draft.rating <= 2 ? "Negative" : "Neutral";
     const score = draft.rating / 5;
+    const payload = {
+      ...draft,
+      wouldRecommend: draft.recommendation === "Yes",
+      sentiment,
+      sentimentScore: score,
+      summary: "Student feedback submitted successfully.",
+      createdAt: Date.now()
+    };
 
-    try {
-      await saveFeedback({
-        ...draft,
-        wouldRecommend: draft.recommendation === "Yes",
-        sentiment,
-        sentimentScore: score,
-        summary: "Student feedback submitted successfully.",
-        createdAt: Date.now()
-      });
+    saveFeedbackDeferred(payload);
 
-      confetti({
-        particleCount: 140,
-        spread: 80,
-        origin: { y: 0.65 },
-        colors: ["#27F4F1", "#3F7DFF", "#7CFF7C", "#FF5B9E"]
-      });
+    confetti({
+      particleCount: 140,
+      spread: 80,
+      origin: { y: 0.65 },
+      colors: ["#27F4F1", "#3F7DFF", "#7CFF7C", "#FF5B9E"]
+    });
 
-      success();
-      onSubmitted();
-    } catch {
-      setError("Unable to submit right now. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    success();
+    onSubmitted();
+    setSubmitting(false);
   };
 
   return (

@@ -25,7 +25,7 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
         setError("Invalid admin credentials.");
       }
     } catch {
-      setError("Login failed due to a network error.");
+      setError("Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -40,31 +40,52 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
       <h2 className="text-2xl font-semibold text-white">Admin Login</h2>
       <p className="mt-2 text-sm text-slate-300">Use authorized credentials to access analytics and downloads.</p>
 
-      <div className="mt-5 space-y-3">
-        <input
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void submit()}
-          placeholder="Username"
-          className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void submit()}
-          placeholder="Password"
-          className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
-        />
-      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+        className="mt-5 space-y-3"
+      >
+        <div>
+          <label htmlFor="admin-username" className="sr-only">
+            Username
+          </label>
+          <input
+            id="admin-username"
+            name="username"
+            type="text"
+            autoComplete="username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="Username"
+            className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
+          />
+        </div>
+        <div>
+          <label htmlFor="admin-password" className="sr-only">
+            Password
+          </label>
+          <input
+            id="admin-password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password"
+            className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
+          />
+        </div>
 
-      {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
+        {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
 
-      <div className="mt-5">
-        <MagneticButton onClick={() => void submit()}>
-          {loading ? "Authenticating..." : "Login"}
-        </MagneticButton>
-      </div>
+        <div className="mt-5">
+          <MagneticButton onClick={() => void submit()}>
+            {loading ? "Authenticating..." : "Login"}
+          </MagneticButton>
+        </div>
+      </form>
     </motion.section>
   );
 }

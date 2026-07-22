@@ -11,11 +11,10 @@ export default async function handler(req: Request): Promise<Response> {
     const username = (body.username || "").trim();
     const password = body.password || "";
 
-    const validUsername = process.env.ADMIN_USERNAME || "admin";
-    const validPassword = process.env.ADMIN_PASSWORD || "admincse123";
+    const validUsername = process.env.ADMIN_USERNAME || "admincse";
+    const validPassword = process.env.ADMIN_PASSWORD || "cseadmin123@";
 
     if (username === validUsername && password === validPassword) {
-      // In production, token can be a signed JWT or session token.
       const sessionToken = Buffer.from(`${username}:${Date.now()}:compesa-secret-session`).toString("base64");
       return new Response(
         JSON.stringify({

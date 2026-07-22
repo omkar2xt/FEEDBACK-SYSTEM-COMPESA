@@ -1,13 +1,26 @@
 import { AnimatePresence, motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { Dispatch, SetStateAction } from "react";
-import { useState } from "react";
-import { saveFeedbackDeferred } from "../services/feedbackService";
-import type { FeedbackInput, FeedbackRecord } from "../types";
+import { useEffect, useState } from "react";
+import {
+  fetchQuestions,
+  fetchSessions,
+  fetchYears,
+  submitMultiYearFeedback
+} from "../services/feedbackService";
+import type {
+  AnswerInput,
+  FeedbackInput,
+  QuestionItem,
+  SessionItem,
+  YearItem
+} from "../types";
+import { DynamicQuestionRenderer } from "./DynamicQuestionRenderer";
 import { LiquidProgress } from "./LiquidProgress";
 import { MagneticButton } from "./MagneticButton";
-import { StarRating } from "./StarRating";
+import { SessionPicker } from "./SessionPicker";
 import { TypingQuestion } from "./TypingQuestion";
+import { YearSelector } from "./YearSelector";
 
 interface SessionFeedbackWizardProps {
   draft: FeedbackInput;
@@ -17,322 +30,317 @@ interface SessionFeedbackWizardProps {
   success: () => void;
 }
 
-const steps = [
-  "name",
-  "overall",
-  "rating",
-  "topic",
-  "clarity",
-  "engagement",
-  "speaker",
-  "feedback",
-  "suggestions",
-  "recommendation"
-] as const;
+export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFeedbackWizardProps) {
+  const [years, setYears] = useState<YearItem[]>([]);
+  const [selectedYear, setSelectedYear] = useState<YearItem | null>(null);
 
-export function SessionFeedbackWizard({ draft, setDraft, onSubmitted, click, success }: SessionFeedbackWizardProps) {
-  const [stepIndex, setStepIndex] = useState(0);
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [selectedSession, setSelectedSession] = useState<SessionItem | null>(null);
+
+  const [studentName, setStudentName] = useState("");
+  const [division, setDivision] = useState("A");
+  const [rollNo, setRollNo] = useState("");
+
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  const [activeStep, setActiveStep] = useState<"year" | "session" | "identity" | "questions">("year");
+  const [questionIndex, setQuestionIndex] = useState(0);
+
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const activeStep = steps[stepIndex];
-  const completion = ((stepIndex + 1) / steps.length) * 100;
+  useEffect(() => {
+    let mounted = true;
+    fetchYears()
+      .then((data) => {
+        if (!mounted) return;
+        setYears(data);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
 
-  const next = () => {
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSelectYear = async (year: YearItem) => {
+    click();
+    setError("");
+    setSelectedYear(year);
+    setSelectedSession(null);
+    setLoading(true);
+
+    try {
+      const sessList = await fetchSessions(year.id);
+      setSessions(sessList);
+
+      const qList = await fetchQuestions(year.id);
+      setQuestions(qList);
+
+      setActiveStep("session");
+    } catch {
+      setError("Failed to load sessions for selected year.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSession = (session: SessionItem) => {
+    click();
+    setError("");
+    setSelectedSession(session);
+    setActiveStep("identity");
+  };
+
+  const handleProceedFromIdentity = () => {
+    click();
+    if (!studentName.trim()) {
+      setError("Please enter your full name.");
+      return;
+    }
+    if (!rollNo.trim()) {
+      setError("Please enter your roll number.");
+      return;
+    }
+
+    setError("");
+    if (questions.length > 0) {
+      setQuestionIndex(0);
+      setActiveStep("questions");
+    } else {
+      // If no dynamic questions configured for year, proceed to submit
+      void handleSubmit();
+    }
+  };
+
+  const currentQuestion = questions[questionIndex];
+
+  const nextQuestion = () => {
     click();
     setError("");
 
-    if (activeStep === "name" && !draft.name.trim()) {
-      setError("Please enter your name.");
-      return;
+    if (currentQuestion) {
+      const val = answers[currentQuestion.id];
+      if (currentQuestion.isRequired && (val === undefined || val === "" || (Array.isArray(val) && !val.length))) {
+        setError("Please answer this question before continuing.");
+        return;
+      }
     }
 
-    if (activeStep === "rating" && draft.rating === 0) {
-      setError("Please select a star rating.");
-      return;
+    if (questionIndex < questions.length - 1) {
+      setQuestionIndex((prev) => prev + 1);
+    } else {
+      void handleSubmit();
     }
-
-    if (activeStep === "feedback" && !draft.message.trim()) {
-      setError("Please share your feedback before continuing.");
-      return;
-    }
-
-    setStepIndex((current) => Math.min(current + 1, steps.length - 1));
   };
 
-  const back = () => {
+  const backQuestion = () => {
     click();
     setError("");
-    setStepIndex((current) => Math.max(current - 1, 0));
+    if (questionIndex > 0) {
+      setQuestionIndex((prev) => prev - 1);
+    } else {
+      setActiveStep("identity");
+    }
   };
 
-  const submit = async () => {
+  const handleSubmit = async () => {
+    if (!selectedYear || !selectedSession) return;
     setSubmitting(true);
     setError("");
 
-    const sentiment: FeedbackRecord["sentiment"] = draft.rating >= 4 ? "Positive" : draft.rating <= 2 ? "Negative" : "Neutral";
-    const score = draft.rating / 5;
-    const payload = {
-      ...draft,
-      id: globalThis.crypto?.randomUUID?.() || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      wouldRecommend: draft.recommendation === "Yes",
-      sentiment,
-      sentimentScore: score,
-      summary: "Student feedback submitted successfully.",
-      createdAt: Date.now()
-    };
+    const answerInputs: AnswerInput[] = Object.entries(answers).map(([qId, val]) => ({
+      questionId: qId,
+      answerValue: val
+    }));
 
-    const saveState = await saveFeedbackDeferred(payload, 3200);
-
-    confetti({
-      particleCount: 140,
-      spread: 80,
-      origin: { y: 0.65 },
-      colors: ["#27F4F1", "#3F7DFF", "#7CFF7C", "#FF5B9E"]
-    });
-
-    success();
-    onSubmitted();
-    if (saveState === "queued") {
-      // Non-blocking warning for slow/offline networks; record will auto-sync on next focus/start.
-      console.warn("Feedback queued for retry because cloud submit was slow or unavailable.");
+    // Extract overall rating from star_rating or emoji_rating questions
+    const ratingQ = questions.find((q) => q.questionType === "star_rating" || q.questionType === "emoji_rating");
+    let overallRating = 5;
+    if (ratingQ && answers[ratingQ.id] !== undefined) {
+      const val = answers[ratingQ.id];
+      if (typeof val === "number" && !isNaN(val)) overallRating = val;
+      else if (!isNaN(Number(val))) overallRating = Number(val);
+      else if (typeof val === "string") {
+        if (val.includes("😍") || val.toLowerCase().includes("excellent") || val.toLowerCase().includes("happy")) overallRating = 5;
+        else if (val.includes("🙂") || val.toLowerCase().includes("good")) overallRating = 4;
+        else if (val.includes("😐") || val.toLowerCase().includes("average") || val.toLowerCase().includes("neutral")) overallRating = 3;
+        else if (val.includes("🙁") || val.toLowerCase().includes("poor") || val.toLowerCase().includes("sad")) overallRating = 2;
+      }
     }
-    setSubmitting(false);
+
+    // Find recommendation question value if present
+    const recQ = questions.find((q) => q.questionType === "yes_no" || q.label.toLowerCase().includes("recommend"));
+    const recommendation = recQ && answers[recQ.id] === "No" ? "No" : "Yes";
+
+    try {
+      await submitMultiYearFeedback({
+        sessionId: selectedSession.id,
+        yearId: selectedYear.id,
+        studentName,
+        division,
+        rollNo,
+        overallRating,
+        recommendation,
+        answers: answerInputs
+      });
+
+      confetti({
+        particleCount: 140,
+        spread: 80,
+        origin: { y: 0.65 },
+        colors: ["#27F4F1", "#3F7DFF", "#7CFF7C", "#FF5B9E"]
+      });
+
+      success();
+      onSubmitted();
+    } catch (err: any) {
+      setError(err.message || "Failed to submit feedback. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  // Progress Calculation
+  const totalSteps = 3 + (questions.length || 1);
+  let currentStepNum = 1;
+  if (activeStep === "session") currentStepNum = 2;
+  if (activeStep === "identity") currentStepNum = 3;
+  if (activeStep === "questions") currentStepNum = 4 + questionIndex;
+  const progressPercent = Math.min(100, (currentStepNum / totalSteps) * 100);
 
   return (
     <section className="rounded-3xl border border-white/15 bg-panel p-6 shadow-glass backdrop-blur-xl sm:p-8">
-      <LiquidProgress progress={completion} />
+      <LiquidProgress progress={progressPercent} />
       <p className="mt-2 text-xs uppercase tracking-[0.2em] text-cyan-200/80">
-        Step {stepIndex + 1} of {steps.length}
+        Step {currentStepNum} of {totalSteps}
       </p>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeStep}
-          initial={{ opacity: 0, y: 18, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -16, scale: 0.98 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className="mt-6 space-y-5"
-        >
-          {activeStep === "name" && (
-            <>
-              <TypingQuestion text="First, who are we hearing from?" />
-              <input
-                aria-label="Student name"
-                value={draft.name}
-                onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-                className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
-                placeholder="Enter your name"
+      {loading ? (
+        <div className="py-12 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+          <p className="mt-3 text-sm text-cyan-100">Loading form...</p>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeStep === "questions" ? `q-${questionIndex}` : activeStep}
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.98 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="mt-6 space-y-5"
+          >
+            {activeStep === "year" && (
+              <YearSelector
+                years={years}
+                selectedYearId={selectedYear?.id || null}
+                onSelectYear={handleSelectYear}
               />
-            </>
-          )}
+            )}
 
-          {activeStep === "overall" && (
-            <>
-              <TypingQuestion text="How was your overall experience of the session?" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  { label: "😃 Excellent", value: "Excellent", mood: "happy" },
-                  { label: "🙂 Good", value: "Good", mood: "happy" },
-                  { label: "😐 Average", value: "Average", mood: "neutral" },
-                  { label: "😕 Poor", value: "Poor", mood: "sad" }
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        overallExperience: option.value as FeedbackInput["overallExperience"],
-                        mood: option.mood as FeedbackInput["mood"]
-                      }))
-                    }
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      draft.overallExperience === option.value
-                        ? "border-cyan-300 bg-cyan-300/20 shadow-glow"
-                        : "border-white/20 bg-slate-900/60 hover:border-cyan-300/50"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+            {activeStep === "session" && selectedYear && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep("year")}
+                  className="mb-4 text-xs font-semibold text-cyan-300 hover:underline"
+                >
+                  ← Back to Year Selection ({selectedYear.label})
+                </button>
+                <SessionPicker
+                  sessions={sessions}
+                  selectedSessionId={selectedSession?.id || null}
+                  onSelectSession={handleSelectSession}
+                />
               </div>
-            </>
-          )}
+            )}
 
-          {activeStep === "rating" && (
-            <>
-              <TypingQuestion text="How would you rate this session?" />
-              <StarRating value={draft.rating} onChange={(rating) => setDraft((prev) => ({ ...prev, rating }))} />
-            </>
-          )}
+            {activeStep === "identity" && selectedSession && (
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveStep("session")}
+                  className="mb-2 text-xs font-semibold text-cyan-300 hover:underline"
+                >
+                  ← Back to Sessions ({selectedSession.title})
+                </button>
+                <TypingQuestion text="Please enter your student details" />
 
-          {activeStep === "topic" && (
-            <>
-              <TypingQuestion text="Which part of the session helped you the most?" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  "Mini Projects",
-                  "GitHub",
-                  "LinkedIn",
-                  "Latest Technologies",
-                  "Career Guidance"
-                ].map((topic) => (
-                  <button
-                    key={topic}
-                    type="button"
-                    onClick={() => setDraft((prev) => ({ ...prev, mostUsefulTopic: topic as FeedbackInput["mostUsefulTopic"] }))}
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      draft.mostUsefulTopic === topic
-                        ? "border-cyan-300 bg-cyan-300/20 shadow-glow"
-                        : "border-white/20 bg-slate-900/60 hover:border-cyan-300/50"
-                    }`}
-                  >
-                    {topic}
-                  </button>
-                ))}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-1">
+                    <label className="block text-xs font-semibold text-cyan-200 mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      value={studentName}
+                      onChange={(e) => setStudentName(e.target.value)}
+                      placeholder="e.g. Alex Johnson"
+                      className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-cyan-200 mb-1">Division</label>
+                    <select
+                      value={division}
+                      onChange={(e) => setDivision(e.target.value)}
+                      className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
+                    >
+                      {["A", "B", "C", "D"].map((div) => (
+                        <option key={div} value={div} className="bg-slate-900 text-white">
+                          Division {div}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-cyan-200 mb-1">Roll Number</label>
+                    <input
+                      type="text"
+                      value={rollNo}
+                      onChange={(e) => setRollNo(e.target.value)}
+                      placeholder="e.g. 101"
+                      className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
+                    />
+                  </div>
+                </div>
               </div>
-            </>
-          )}
+            )}
 
-          {activeStep === "clarity" && (
-            <>
-              <TypingQuestion text="Was the session easy to understand?" />
-              <div className="grid gap-3">
-                {["Very clear", "Somewhat clear", "Difficult"].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setDraft((prev) => ({ ...prev, clarity: value as FeedbackInput["clarity"] }))}
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      draft.clarity === value
-                        ? "border-cyan-300 bg-cyan-300/20 shadow-glow"
-                        : "border-white/20 bg-slate-900/60 hover:border-cyan-300/50"
-                    }`}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {activeStep === "engagement" && (
-            <>
-              <TypingQuestion text="How engaging was the session?" />
-              <div className="grid gap-3">
-                {["Very engaging", "Okay", "Boring"].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setDraft((prev) => ({ ...prev, engagement: value as FeedbackInput["engagement"] }))}
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      draft.engagement === value
-                        ? "border-cyan-300 bg-cyan-300/20 shadow-glow"
-                        : "border-white/20 bg-slate-900/60 hover:border-cyan-300/50"
-                    }`}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {activeStep === "speaker" && (
-            <>
-              <TypingQuestion text="How was the speaker and support team during the session?" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {["Excellent", "Good", "Average", "Needs improvement"].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        speakerSupport: value as FeedbackInput["speakerSupport"]
-                      }))
-                    }
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      draft.speakerSupport === value
-                        ? "border-cyan-300 bg-cyan-300/20 shadow-glow"
-                        : "border-white/20 bg-slate-900/60 hover:border-cyan-300/50"
-                    }`}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {activeStep === "feedback" && (
-            <>
-              <TypingQuestion text="Tell us your honest feedback..." />
-              <textarea
-                rows={5}
-                value={draft.message}
-                onChange={(event) => setDraft((prev) => ({ ...prev, message: event.target.value }))}
-                className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
-                placeholder="What did you like? What can we improve?"
+            {activeStep === "questions" && currentQuestion && (
+              <DynamicQuestionRenderer
+                question={currentQuestion}
+                value={answers[currentQuestion.id]}
+                onChange={(val) => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: val }))}
               />
-            </>
-          )}
-
-          {activeStep === "suggestions" && (
-            <>
-              <TypingQuestion text="Any suggestions for future sessions? (Optional)" />
-              <textarea
-                rows={4}
-                value={draft.suggestions || ""}
-                onChange={(event) => setDraft((prev) => ({ ...prev, suggestions: event.target.value }))}
-                className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
-                placeholder="Optional suggestions"
-              />
-            </>
-          )}
-
-          {activeStep === "recommendation" && (
-            <>
-              <TypingQuestion text="Would you recommend this session to your friends?" />
-              <div className="grid gap-3">
-                {["Yes", "Maybe", "No"].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        recommendation: value as FeedbackInput["recommendation"],
-                        wouldRecommend: value === "Yes"
-                      }))
-                    }
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      draft.recommendation === value
-                        ? "border-cyan-300 bg-cyan-300/20 shadow-glow"
-                        : "border-white/20 bg-slate-900/60 hover:border-cyan-300/50"
-                    }`}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </motion.div>
-      </AnimatePresence>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      )}
 
       {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
 
       <div className="mt-6 flex flex-wrap gap-3">
-        {stepIndex > 0 && <MagneticButton onClick={back}>Back</MagneticButton>}
-        {activeStep !== "recommendation" && <MagneticButton onClick={next}>Continue</MagneticButton>}
-        {activeStep === "recommendation" && (
-          <MagneticButton onClick={submit} disabled={submitting}>
-            {submitting ? "Submitting..." : "Submit Feedback"}
+        {activeStep === "identity" && (
+          <MagneticButton onClick={handleProceedFromIdentity}>
+            Continue to Questions →
           </MagneticButton>
+        )}
+
+        {activeStep === "questions" && (
+          <>
+            <MagneticButton onClick={backQuestion}>Back</MagneticButton>
+            <MagneticButton onClick={nextQuestion} disabled={submitting}>
+              {submitting
+                ? "Submitting..."
+                : questionIndex === questions.length - 1
+                ? "Submit Feedback"
+                : "Next Question →"}
+            </MagneticButton>
+          </>
         )}
       </div>
     </section>

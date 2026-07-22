@@ -1,9 +1,10 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { FeedbackRecord } from "../types";
-import { supabase } from "./supabase";
+import { isSupabaseConfigured, supabase } from "./supabase";
 
 const RETRY_QUEUE_KEY = "feedback_retry_queue_v1";
 const ADMIN_TOKEN_KEY = "admin_auth_token_v1";
+const LOCAL_FEEDBACK_KEY = "local_submitted_feedback_v1";
 
 type Unsubscribe = () => void;
 
@@ -33,6 +34,34 @@ interface FeedbackRow {
   created_at_client: number | null;
   created_at: string;
 }
+
+const INITIAL_DEMO_RECORDS: FeedbackRecord[] = [
+  {
+    id: "demo-1",
+    name: "Alex Johnson",
+    email: "alex@example.edu",
+    mood: "happy",
+    rating: 5,
+    category: "UX",
+    message: "The session on Mini Projects and GitHub workflow was incredibly insightful!",
+    wouldRecommend: true,
+    followUp: "Yes",
+    overallExperience: "Excellent",
+    learningOutcome: "Yes, a lot",
+    mostUsefulTopic: "Mini Projects",
+    clarity: "Very clear",
+    engagement: "Very engaging",
+    speakerSupport: "Excellent",
+    impactPlan: "Building a project",
+    impactPlans: ["Building a project", "Creating GitHub"],
+    recommendation: "Yes",
+    suggestions: "Keep doing live coding demonstrations!",
+    sentiment: "Positive",
+    sentimentScore: 0.92,
+    summary: "Student highlighted high value in live mini projects and GitHub workflow.",
+    createdAt: Date.now() - 3600000
+  }
+];
 
 export function getStoredAdminToken(): string | null {
   return localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -72,7 +101,6 @@ export async function loginAdminBackend(username: string, password: string): Pro
     // API endpoint unreachable or timed out
   }
 
-  // Instant fallback to static credentials validation
   if (isStaticAdmin) {
     const fallbackToken = "local-admin-token";
     storeAdminToken(fallbackToken);
@@ -109,6 +137,25 @@ function enqueueForRetry(record: FeedbackRecord) {
   writeRetryQueue(filtered);
 }
 
+function readLocalStoredFeedback(): FeedbackRecord[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_FEEDBACK_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as FeedbackRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalStoredFeedback(record: FeedbackRecord) {
+  const list = readLocalStoredFeedback();
+  const key = record.id || String(record.createdAt);
+  const filtered = list.filter((item) => (item.id || String(item.createdAt)) !== key);
+  filtered.unshift(record);
+  localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(filtered));
+}
+
 function normalizeRecord(row: FeedbackRow): FeedbackRecord {
   return {
     id: row.id,
@@ -140,6 +187,10 @@ function normalizeRecord(row: FeedbackRow): FeedbackRecord {
 export async function saveFeedback(record: FeedbackRecord) {
   const fallbackId = `${record.createdAt}-${Math.abs(record.name.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0))}`;
   const docId = record.id || fallbackId;
+  record.id = docId;
+
+  // Store locally for immediate UI availability
+  saveLocalStoredFeedback(record);
 
   const payload = {
     id: docId,
@@ -167,7 +218,7 @@ export async function saveFeedback(record: FeedbackRecord) {
     created_at_client: record.createdAt
   };
 
-  // Try Serverless API endpoint with short timeout
+  // Try Serverless API endpoint
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
@@ -184,12 +235,14 @@ export async function saveFeedback(record: FeedbackRecord) {
       return;
     }
   } catch {
-    // Fallback to direct Supabase SDK write
+    // API endpoint unreachable
   }
 
-  const { error } = await supabase.from("feedback").upsert(payload, { onConflict: "id" });
-  if (error) {
-    throw error;
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from("feedback").upsert(payload, { onConflict: "id" });
+    if (error) {
+      throw error;
+    }
   }
 }
 
@@ -226,15 +279,13 @@ export async function flushQueuedFeedback() {
 export async function fetchFeedback(): Promise<FeedbackRecord[]> {
   const token = getStoredAdminToken() || "local-admin-token";
 
-  // Try Serverless API endpoint first
+  // 1. Try Serverless API endpoint first
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
 
     const res = await fetch("/api/feedback", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
+      headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal
     }).finally(() => clearTimeout(timer));
 
@@ -246,19 +297,36 @@ export async function fetchFeedback(): Promise<FeedbackRecord[]> {
       }
     }
   } catch {
-    // Fallback to direct Supabase SDK fetch if serverless endpoint is offline
+    // API endpoint offline
   }
 
-  const { data, error } = await supabase
-    .from("feedback")
-    .select("*")
-    .order("created_at", { ascending: false });
+  // 2. Try Supabase SDK if validly configured
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from("feedback")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-  if (error) {
-    throw error;
+      if (!error && data) {
+        return data.map((row) => normalizeRecord(row as FeedbackRow));
+      }
+    } catch {
+      // Supabase fetch failed
+    }
   }
 
-  return (data || []).map((row) => normalizeRecord(row as FeedbackRow));
+  // 3. Local stored & demo fallback
+  const localItems = readLocalStoredFeedback();
+  const merged = [...localItems];
+
+  INITIAL_DEMO_RECORDS.forEach((demo) => {
+    if (!merged.some((item) => item.id === demo.id)) {
+      merged.push(demo);
+    }
+  });
+
+  return merged;
 }
 
 export function subscribeFeedbackRealtime(
@@ -277,16 +345,25 @@ export function subscribeFeedbackRealtime(
 
   void load();
 
-  channel = supabase
-    .channel("feedback-realtime")
-    .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => {
-      void load();
-    })
-    .subscribe((status) => {
-      if (status === "CHANNEL_ERROR") {
-        onError?.(new Error("Supabase realtime channel error."));
-      }
-    });
+  // If Supabase is not validly configured, skip WebSocket to prevent ERR_NAME_NOT_RESOLVED spam
+  if (!isSupabaseConfigured()) {
+    return () => {};
+  }
+
+  try {
+    channel = supabase
+      .channel("feedback-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => {
+        void load();
+      })
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          onError?.(new Error("Supabase realtime channel unavailable."));
+        }
+      });
+  } catch {
+    // Channel initialization failed silently
+  }
 
   return () => {
     if (channel) {

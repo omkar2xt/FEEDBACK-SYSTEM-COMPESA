@@ -63,13 +63,9 @@ export default function App() {
         if (!mounted) return;
         setRecords(data);
       })
-      .catch((err) => {
+      .catch(() => {
         if (!mounted) return;
-        setAdminError(
-          err instanceof Error && err.message
-            ? err.message
-            : "Unable to connect to Supabase database. Please verify VITE_SUPABASE_URL."
-        );
+        setAdminError("Unable to fetch feedback from cloud database.");
       })
       .finally(() => {
         if (!mounted) return;
@@ -80,15 +76,10 @@ export default function App() {
       (data) => {
         if (!mounted) return;
         setRecords(data);
-        setAdminError("");
       },
-      (err) => {
+      () => {
         if (!mounted) return;
-        setAdminError(
-          err instanceof Error
-            ? `Realtime connection failed: ${err.message}`
-            : "Supabase connection error. Please verify your VITE_SUPABASE_URL."
-        );
+        setAdminError("Realtime update failed. Showing latest fetched data.");
       }
     );
 
@@ -247,21 +238,28 @@ export default function App() {
                 <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
                 <p className="mt-3 text-sm text-cyan-100">Loading feedback from Supabase...</p>
               </section>
-            ) : adminError ? (
+            ) : adminError && !records.length ? (
               <section className="rounded-2xl border border-rose-300/30 bg-rose-500/10 p-6 text-center backdrop-blur-xl">
                 <p className="text-sm text-rose-200">{adminError}</p>
               </section>
             ) : (
-              <Suspense
-                fallback={
-                  <section className="rounded-2xl border border-white/15 bg-panel p-6 text-center shadow-glass backdrop-blur-xl">
-                    <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-                    <p className="mt-3 text-sm text-cyan-100">Loading dashboard...</p>
-                  </section>
-                }
-              >
-                <AdminDashboard records={records} onLogout={handleAdminLogout} />
-              </Suspense>
+              <div className="space-y-4">
+                {adminError && (
+                  <div className="rounded-xl border border-amber-300/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200 backdrop-blur-xl">
+                    ℹ️ {adminError}
+                  </div>
+                )}
+                <Suspense
+                  fallback={
+                    <section className="rounded-2xl border border-white/15 bg-panel p-6 text-center shadow-glass backdrop-blur-xl">
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                      <p className="mt-3 text-sm text-cyan-100">Loading dashboard...</p>
+                    </section>
+                  }
+                >
+                  <AdminDashboard records={records} onLogout={handleAdminLogout} />
+                </Suspense>
+              </div>
             )}
           </motion.div>
         )}

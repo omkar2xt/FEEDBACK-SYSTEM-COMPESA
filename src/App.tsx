@@ -63,9 +63,13 @@ export default function App() {
         if (!mounted) return;
         setRecords(data);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!mounted) return;
-        setAdminError("Unable to fetch feedback from cloud database.");
+        setAdminError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Unable to connect to Supabase database. Please verify VITE_SUPABASE_URL."
+        );
       })
       .finally(() => {
         if (!mounted) return;
@@ -76,10 +80,15 @@ export default function App() {
       (data) => {
         if (!mounted) return;
         setRecords(data);
+        setAdminError("");
       },
-      () => {
+      (err) => {
         if (!mounted) return;
-        setAdminError("Realtime update failed. Showing latest fetched data.");
+        setAdminError(
+          err instanceof Error
+            ? `Realtime connection failed: ${err.message}`
+            : "Supabase connection error. Please verify your VITE_SUPABASE_URL."
+        );
       }
     );
 

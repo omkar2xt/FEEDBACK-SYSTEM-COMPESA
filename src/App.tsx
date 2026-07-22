@@ -10,7 +10,14 @@ import { MagneticButton } from "./components/MagneticButton";
 import { ThreeBackground } from "./components/ThreeBackground";
 import { useLocalProgress } from "./hooks/useLocalProgress";
 import { useSound } from "./hooks/useSound";
-import { fetchFeedback, flushQueuedFeedback, subscribeFeedbackRealtime } from "./services/feedbackService";
+import {
+  clearAdminToken,
+  fetchFeedback,
+  flushQueuedFeedback,
+  getStoredAdminToken,
+  loginAdminBackend,
+  subscribeFeedbackRealtime
+} from "./services/feedbackService";
 import type { FeedbackRecord } from "./types";
 
 const AdminDashboard = lazy(async () => {
@@ -22,7 +29,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function App() {
   const [activePanel, setActivePanel] = useState<"user" | "admin">("user");
-  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [adminAuthenticated, setAdminAuthenticated] = useState<boolean>(() => Boolean(getStoredAdminToken()));
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -140,10 +147,15 @@ export default function App() {
     setShowThanksPopup(true);
   };
 
-  const handleAdminLogin = (username: string, password: string) => {
-    const ok = username === "admin" && password === "admincse123";
-    setAdminAuthenticated(ok);
-    return ok;
+  const handleAdminLogin = async (username: string, password: string) => {
+    const res = await loginAdminBackend(username, password);
+    setAdminAuthenticated(res.ok);
+    return res.ok;
+  };
+
+  const handleAdminLogout = () => {
+    clearAdminToken();
+    setAdminAuthenticated(false);
   };
 
   const thankYou = useMemo(() => {
@@ -239,7 +251,7 @@ export default function App() {
                   </section>
                 }
               >
-                <AdminDashboard records={records} onLogout={() => setAdminAuthenticated(false)} />
+                <AdminDashboard records={records} onLogout={handleAdminLogout} />
               </Suspense>
             )}
           </motion.div>

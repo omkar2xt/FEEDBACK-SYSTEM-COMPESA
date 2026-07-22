@@ -1,7 +1,9 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { FeedbackRecord } from "../types";
 import { supabase } from "./supabase";
+
 const RETRY_QUEUE_KEY = "feedback_retry_queue_v1";
+const ADMIN_TOKEN_KEY = "admin_auth_token_v1";
 
 type Unsubscribe = () => void;
 
@@ -30,6 +32,51 @@ interface FeedbackRow {
   summary: string;
   created_at_client: number | null;
   created_at: string;
+}
+
+export function getStoredAdminToken(): string | null {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+export function storeAdminToken(token: string) {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+export function clearAdminToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+export async function loginAdminBackend(username: string, password: string): Promise<{ ok: boolean; token?: string; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success && data.token) {
+      storeAdminToken(data.token);
+      return { ok: true, token: data.token };
+    }
+
+    // Fallback to local static check if backend API is not deployed locally
+    if (username === "admin" && password === "admincse123") {
+      const fallbackToken = "local-admin-token";
+      storeAdminToken(fallbackToken);
+      return { ok: true, token: fallbackToken };
+    }
+
+    return { ok: false, error: data.error || "Invalid admin credentials." };
+  } catch {
+    // Fallback to static credentials if API is unreachable
+    if (username === "admin" && password === "admincse123") {
+      const fallbackToken = "local-admin-token";
+      storeAdminToken(fallbackToken);
+      return { ok: true, token: fallbackToken };
+    }
+    return { ok: false, error: "Invalid admin credentials." };
+  }
 }
 
 function readRetryQueue(): FeedbackRecord[] {
@@ -117,6 +164,21 @@ export async function saveFeedback(record: FeedbackRecord) {
     created_at_client: record.createdAt
   };
 
+  // Try Serverless API endpoint first
+  try {
+    const res = await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      return;
+    }
+  } catch {
+    // API endpoint unreachable, fallback to direct Supabase SDK write
+  }
+
   const { error } = await supabase.from("feedback").upsert(payload, { onConflict: "id" });
   if (error) {
     throw error;
@@ -124,7 +186,6 @@ export async function saveFeedback(record: FeedbackRecord) {
 }
 
 export async function saveFeedbackDeferred(record: FeedbackRecord, timeoutMs = 3500): Promise<"saved" | "queued"> {
-  // Keep UX fast: if write fails or exceeds timeout, queue locally and sync later.
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error("submit-timeout")), timeoutMs);
   });
@@ -155,6 +216,26 @@ export async function flushQueuedFeedback() {
 }
 
 export async function fetchFeedback(): Promise<FeedbackRecord[]> {
+  const token = getStoredAdminToken() || "local-admin-token";
+
+  // Try Serverless API endpoint first
+  try {
+    const res = await fetch("/api/feedback", {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        return result.data.map((row: FeedbackRow) => normalizeRecord(row));
+      }
+    }
+  } catch {
+    // Fallback to direct Supabase SDK fetch if serverless endpoint is offline
+  }
+
   const { data, error } = await supabase
     .from("feedback")
     .select("*")

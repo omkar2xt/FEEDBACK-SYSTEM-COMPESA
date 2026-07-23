@@ -152,7 +152,40 @@ export async function loginAdminBackend(username: string, password: string): Pro
   return { ok: false, error: "Invalid admin credentials." };
 }
 
-export async function flushQueuedFeedback() {}
+export async function flushQueuedFeedback() {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const raw = localStorage.getItem(LOCAL_FEEDBACK_KEY);
+    if (!raw) return;
+    const localList: FeedbackRecord[] = JSON.parse(raw);
+    if (!localList || localList.length === 0) return;
+
+    const unSynced = localList.filter((rec) => rec.id?.startsWith("local-resp-"));
+    for (const rec of unSynced) {
+      await supabase.from("feedback").insert({
+        name: rec.name,
+        email: rec.email || `${rec.rollNo || '01'}@student.edu`,
+        mood: rec.mood || "happy",
+        rating: rec.rating || 5,
+        category: rec.category || "UX",
+        message: rec.message || "Feedback submitted",
+        would_recommend: Boolean(rec.wouldRecommend),
+        overall_experience: rec.overallExperience || "Good",
+        learning_outcome: rec.learningOutcome || "Some useful things",
+        most_useful_topic: rec.mostUsefulTopic || "Mini Projects",
+        clarity: rec.clarity || "Very clear",
+        engagement: rec.engagement || "Very engaging",
+        speaker_support: rec.speakerSupport || "Good",
+        impact_plan: rec.impactPlan || "Improving skills",
+        recommendation: rec.recommendation || "Yes",
+        sentiment: rec.sentiment || "Neutral",
+        sentiment_score: rec.sentimentScore || 0.8,
+        summary: rec.summary || "Synced from Local Storage",
+        created_at_client: rec.createdAt || Date.now()
+      });
+    }
+  } catch {}
+}
 
 // Legacy Export for FeedbackWizard Compatibility
 export async function saveFeedback(data: any): Promise<"saved" | "queued"> {
@@ -629,17 +662,32 @@ export async function submitMultiYearFeedback(input: MultiYearResponseInput): Pr
   let targetYearCode = "FY";
 
   if (isSupabaseConfigured()) {
-    const { data: yearList } = await supabase.from("years").select("id, code, is_open");
-    if (yearList && yearList.length > 0) {
+    try {
+      let { data: yearList } = await supabase.from("years").select("id, code, is_open");
+      
+      // If years table in Supabase is empty, seed default years into Supabase to get real UUIDs
+      if (!yearList || yearList.length === 0) {
+        const seedPayload = DEFAULT_YEARS.map((y) => ({
+          code: y.code,
+          label: y.label,
+          display_order: y.displayOrder,
+          is_open: true
+        }));
+        const { data: seeded } = await supabase.from("years").insert(seedPayload).select();
+        if (seeded && seeded.length > 0) {
+          yearList = seeded;
+        }
+      }
+
       const rawCode = (input.yearId || "").replace(/^year-/i, "").toUpperCase();
-      const matchedYear = yearList.find((y: any) =>
+      const matchedYear = (yearList || []).find((y: any) =>
         y.id === input.yearId ||
         y.code?.toUpperCase() === rawCode ||
         y.code?.toUpperCase() === input.yearId?.toUpperCase()
-      ) || yearList.find((y: any) => y.code === "SY" && rawCode.includes("SY"))
-        || yearList.find((y: any) => y.code === "TY" && rawCode.includes("TY"))
-        || yearList.find((y: any) => y.code === "BTECH" && rawCode.includes("BTECH"))
-        || yearList[0];
+      ) || (yearList || []).find((y: any) => y.code === "SY" && rawCode.includes("SY"))
+        || (yearList || []).find((y: any) => y.code === "TY" && rawCode.includes("TY"))
+        || (yearList || []).find((y: any) => y.code === "BTECH" && rawCode.includes("BTECH"))
+        || (yearList || [])[0];
 
       if (matchedYear) {
         if (!matchedYear.is_open) {
@@ -648,90 +696,148 @@ export async function submitMultiYearFeedback(input: MultiYearResponseInput): Pr
         targetYearId = matchedYear.id;
         targetYearCode = matchedYear.code;
       }
-    }
 
-    const { data: sessionList } = await supabase.from("sessions").select("id, year_id").eq("year_id", targetYearId);
-    if (sessionList && sessionList.length > 0) {
-      const matchedSess = sessionList.find((s: any) => s.id === input.sessionId) || sessionList[0];
-      if (matchedSess) {
-        targetSessionId = matchedSess.id;
+      let { data: sessionList } = await supabase.from("sessions").select("id, year_id").eq("year_id", targetYearId);
+      
+      // If sessions table for targetYearId in Supabase is empty, seed default session into Supabase to get a real UUID
+      if (!sessionList || sessionList.length === 0) {
+        const seedInfo = DEFAULT_SESSIONS_MAP[targetYearCode] || DEFAULT_SESSIONS_MAP.FY;
+        const seedPayload = {
+          year_id: targetYearId,
+          title: seedInfo.title,
+          description: seedInfo.description,
+          session_date: new Date().toISOString().split("T")[0],
+          venue: seedInfo.venue,
+          feedback_open: true
+        };
+        const { data: seededSess } = await supabase.from("sessions").insert(seedPayload).select();
+        if (seededSess && seededSess.length > 0) {
+          sessionList = seededSess;
+        }
       }
-    }
 
-    const overallRating = input.overallRating || 5;
-    const sentiment = overallRating >= 4 ? "Positive" : overallRating <= 2 ? "Negative" : "Neutral";
+      if (sessionList && sessionList.length > 0) {
+        const matchedSess = sessionList.find((s: any) => s.id === input.sessionId) || sessionList[0];
+        if (matchedSess) {
+          targetSessionId = matchedSess.id;
+        }
+      }
 
-    const { data: resp, error: respErr } = await supabase
-      .from("responses")
-      .insert({
-        session_id: targetSessionId,
-        year_id: targetYearId,
-        student_name: cleanStudentName,
-        division: cleanDivision,
-        roll_no: cleanRollNo,
-        overall_rating: overallRating,
-        recommendation: sanitizeText(input.recommendation || "Yes", 10),
-        sentiment,
-        submitted_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      const overallRating = input.overallRating || 5;
+      const sentiment = overallRating >= 4 ? "Positive" : overallRating <= 2 ? "Negative" : "Neutral";
+      const messageText = input.answers.map((a) => typeof a.answerValue === "string" ? sanitizeText(a.answerValue, 2000) : JSON.stringify(a.answerValue)).join(" | ") || "Feedback submitted";
 
-    if (!respErr && resp) {
-      if (input.answers && input.answers.length > 0) {
-        let { data: questionList } = await supabase
-          .from("questions")
-          .select("id, order_index, label")
-          .eq("year_id", targetYearId)
-          .order("order_index", { ascending: true });
+      // 1. Insert into Supabase 'responses' table
+      const { data: resp, error: respErr } = await supabase
+        .from("responses")
+        .insert({
+          session_id: targetSessionId,
+          year_id: targetYearId,
+          student_name: cleanStudentName,
+          division: cleanDivision,
+          roll_no: cleanRollNo,
+          overall_rating: overallRating,
+          recommendation: sanitizeText(input.recommendation || "Yes", 10),
+          sentiment,
+          submitted_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-        if (!questionList || questionList.length === 0) {
-          const defaultSet = DEFAULT_QUESTIONS_MAP[targetYearCode] || DEFAULT_QUESTIONS_MAP.FY;
-          const seedPayload = defaultSet.map((q) => ({
-            year_id: targetYearId,
-            label: q.label,
-            question_type: q.questionType,
-            options: q.options || [],
-            placeholder: q.placeholder || "",
-            helper_text: q.helperText || "",
-            is_required: Boolean(q.isRequired ?? true),
-            order_index: q.orderIndex ?? 1
-          }));
+      if (respErr) {
+        console.error("⚠️ Supabase 'responses' insert error:", respErr);
+      }
 
-          const { data: insertedQs } = await supabase
+      if (resp) {
+        if (input.answers && input.answers.length > 0) {
+          let { data: questionList } = await supabase
             .from("questions")
-            .insert(seedPayload)
-            .select("id, order_index, label");
+            .select("id, order_index, label")
+            .eq("year_id", targetYearId)
+            .order("order_index", { ascending: true });
 
-          if (insertedQs) questionList = insertedQs;
-        }
+          if (!questionList || questionList.length === 0) {
+            const defaultSet = DEFAULT_QUESTIONS_MAP[targetYearCode] || DEFAULT_QUESTIONS_MAP.FY;
+            const seedPayload = defaultSet.map((q) => ({
+              year_id: targetYearId,
+              label: q.label,
+              question_type: q.questionType,
+              options: q.options || [],
+              placeholder: q.placeholder || "",
+              helper_text: q.helperText || "",
+              is_required: Boolean(q.isRequired ?? true),
+              order_index: q.orderIndex ?? 1
+            }));
 
-        const qMapById = new Map((questionList || []).map((q: any) => [q.id, q.id]));
-        const qListOrdered = (questionList || []).sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
+            const { data: insertedQs } = await supabase
+              .from("questions")
+              .insert(seedPayload)
+              .select("id, order_index, label");
 
-        const answerPayloads = input.answers
-          .map((ans, idx) => {
-            let realQId = qMapById.get(ans.questionId);
-            if (!realQId && qListOrdered[idx]) {
-              realQId = qListOrdered[idx].id;
-            }
-            if (!realQId && qListOrdered.length > 0) {
-              realQId = qListOrdered[0].id;
-            }
-            const cleanVal = typeof ans.answerValue === "string" ? sanitizeText(ans.answerValue, 2000) : ans.answerValue;
-            return {
-              response_id: resp.id,
-              question_id: realQId,
-              answer_value: cleanVal
-            };
-          })
-          .filter((a) => Boolean(a.question_id));
+            if (insertedQs) questionList = insertedQs;
+          }
 
-        if (answerPayloads.length > 0) {
-          await supabase.from("answers").insert(answerPayloads);
+          const qMapById = new Map((questionList || []).map((q: any) => [q.id, q.id]));
+          const qListOrdered = (questionList || []).sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
+
+          const answerPayloads = input.answers
+            .map((ans, idx) => {
+              let realQId = qMapById.get(ans.questionId);
+              if (!realQId && qListOrdered[idx]) {
+                realQId = qListOrdered[idx].id;
+              }
+              if (!realQId && qListOrdered.length > 0) {
+                realQId = qListOrdered[0].id;
+              }
+              const cleanVal = typeof ans.answerValue === "string" ? sanitizeText(ans.answerValue, 2000) : ans.answerValue;
+              return {
+                response_id: resp.id,
+                question_id: realQId,
+                answer_value: cleanVal
+              };
+            })
+            .filter((a) => Boolean(a.question_id));
+
+          if (answerPayloads.length > 0) {
+            await supabase.from("answers").insert(answerPayloads);
+          }
         }
       }
-      return "saved";
+
+      // 2. Also insert into legacy 'feedback' table for maximum compatibility across all views
+      const { error: legacyErr } = await supabase
+        .from("feedback")
+        .insert({
+          name: cleanStudentName,
+          email: `${cleanRollNo.toLowerCase()}@student.edu`,
+          mood: overallRating >= 4 ? "happy" : "neutral",
+          rating: overallRating,
+          category: "UX",
+          message: messageText,
+          would_recommend: (input.recommendation || "Yes") === "Yes",
+          overall_experience: overallRating >= 4 ? "Excellent" : "Good",
+          learning_outcome: "Some useful things",
+          most_useful_topic: "Mini Projects",
+          clarity: "Very clear",
+          engagement: "Very engaging",
+          speaker_support: "Good",
+          impact_plan: "Improving skills",
+          recommendation: sanitizeText(input.recommendation || "Yes", 10),
+          sentiment,
+          sentiment_score: overallRating / 5,
+          summary: "Submitted via Multi-Year Flow",
+          created_at_client: Date.now()
+        });
+
+      if (legacyErr) {
+        console.warn("Notice: Legacy 'feedback' table insert warning:", legacyErr);
+      }
+
+      if (!respErr || !legacyErr) {
+        return "saved";
+      }
+    } catch (err) {
+      console.error("Error saving feedback to Supabase:", err);
     }
   }
 

@@ -15,7 +15,6 @@ import type {
   SessionItem,
   YearItem
 } from "../types";
-import { ContactUs } from "./ContactUs";
 import { DynamicQuestionRenderer } from "./DynamicQuestionRenderer";
 import { LiquidProgress } from "./LiquidProgress";
 import { MagneticButton } from "./MagneticButton";
@@ -45,7 +44,7 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
-  const [activeStep, setActiveStep] = useState<"year" | "session" | "contact" | "identity" | "questions">("year");
+  const [activeStep, setActiveStep] = useState<"year" | "session" | "identity" | "questions">("year");
   const [questionIndex, setQuestionIndex] = useState(0);
 
   const [loading, setLoading] = useState(true);
@@ -94,7 +93,7 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
     click();
     setError("");
     setSelectedSession(session);
-    setActiveStep("contact");
+    setActiveStep("identity");
   };
 
   const handleProceedFromIdentity = () => {
@@ -208,12 +207,11 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
   };
 
   // Progress Calculation
-  const totalSteps = 4 + (questions.length || 1);
+  const totalSteps = 3 + (questions.length || 1);
   let currentStepNum = 1;
   if (activeStep === "session") currentStepNum = 2;
-  if (activeStep === "contact") currentStepNum = 3;
-  if (activeStep === "identity") currentStepNum = 4;
-  if (activeStep === "questions") currentStepNum = 5 + questionIndex;
+  if (activeStep === "identity") currentStepNum = 3;
+  if (activeStep === "questions") currentStepNum = 4 + questionIndex;
   const progressPercent = Math.min(100, (currentStepNum / totalSteps) * 100);
 
   return (
@@ -263,21 +261,14 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
               </div>
             )}
 
-            {activeStep === "contact" && (
-              <ContactUs
-                onStartFeedback={() => setActiveStep("identity")}
-                onBack={() => setActiveStep("session")}
-              />
-            )}
-
             {activeStep === "identity" && selectedSession && (
               <div className="space-y-4">
                 <button
                   type="button"
-                  onClick={() => setActiveStep("contact")}
+                  onClick={() => setActiveStep("session")}
                   className="mb-2 text-xs font-semibold text-cyan-300 hover:underline"
                 >
-                  ← Back to Contact Us / Coordinator Info
+                  ← Back to Sessions ({selectedSession.title})
                 </button>
                 <TypingQuestion text="Please enter your student details" />
 

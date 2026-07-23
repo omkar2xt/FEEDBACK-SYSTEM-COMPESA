@@ -2,11 +2,12 @@ import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { CursorGlow } from "./components/CursorGlow";
 import { AdminLogin } from "./components/AdminLogin";
+import { ContactUs } from "./components/ContactUs";
+import { CursorGlow } from "./components/CursorGlow";
+import { MagneticButton } from "./components/MagneticButton";
 import { SessionFeedbackWizard } from "./components/SessionFeedbackWizard";
 import { SessionSummary } from "./components/SessionSummary";
-import { MagneticButton } from "./components/MagneticButton";
 import { ThreeBackground } from "./components/ThreeBackground";
 import { useLocalProgress } from "./hooks/useLocalProgress";
 import { useSound } from "./hooks/useSound";
@@ -28,7 +29,7 @@ const AdminDashboard = lazy(async () => {
 gsap.registerPlugin(ScrollTrigger);
 
 export default function App() {
-  const [activePanel, setActivePanel] = useState<"user" | "admin">("user");
+  const [activePanel, setActivePanel] = useState<"feedback" | "contact" | "admin">("feedback");
   const [adminAuthenticated, setAdminAuthenticated] = useState<boolean>(() => Boolean(getStoredAdminToken()));
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState("");
@@ -174,26 +175,45 @@ export default function App() {
       <ThreeBackground />
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        {/* TOP HEADER */}
         <motion.header
           initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="hero-fade rounded-3xl border border-white/15 bg-panel p-6 shadow-glass backdrop-blur-xl"
         >
-          <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">First Year Programming Session</p>
-          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Session Feedback Journey</h1>
+          <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">COMPESA Student Portal</p>
+          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Session Feedback & Guidance</h1>
           <p className="mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
-            Help us improve by sharing your insights on this first-year programming guidance session. Your feedback shapes better resources for students like you.
+            Help us improve by sharing your insights on academic guidance sessions. Your feedback shapes better learning resources.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <MagneticButton onClick={() => setActivePanel("user")}>User Panel</MagneticButton>
-            <MagneticButton onClick={() => setActivePanel("admin")}>Admin Panel</MagneticButton>
-          </div>
+            <MagneticButton
+              onClick={() => setActivePanel("feedback")}
+              className={activePanel === "feedback" ? "border-cyan-400 bg-cyan-400/20 text-cyan-200 shadow-glow" : ""}
+            >
+              📝 Student Feedback
+            </MagneticButton>
 
+            <MagneticButton
+              onClick={() => setActivePanel("contact")}
+              className={activePanel === "contact" ? "border-cyan-400 bg-cyan-400/20 text-cyan-200 shadow-glow" : ""}
+            >
+              📞 Contact Us
+            </MagneticButton>
+
+            <MagneticButton
+              onClick={() => setActivePanel("admin")}
+              className={activePanel === "admin" ? "border-cyan-400 bg-cyan-400/20 text-cyan-200 shadow-glow" : ""}
+            >
+              🔒 Admin Control
+            </MagneticButton>
+          </div>
         </motion.header>
 
-        {activePanel === "user" && (
+        {/* TAB 1: STUDENT FEEDBACK WIZARD */}
+        {activePanel === "feedback" && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -229,6 +249,18 @@ export default function App() {
           </motion.div>
         )}
 
+        {/* TAB 2: STANDALONE CONTACT US SECTION */}
+        {activePanel === "contact" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <ContactUs onStartFeedback={() => setActivePanel("feedback")} />
+          </motion.div>
+        )}
+
+        {/* TAB 3: ADMIN CONTROL CENTER */}
         {activePanel === "admin" && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             {!adminAuthenticated ? (

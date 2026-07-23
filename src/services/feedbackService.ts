@@ -288,17 +288,17 @@ export async function toggleYearOpen(yearId: string, isOpen: boolean): Promise<b
 
 export async function fetchSessions(yearId?: string): Promise<SessionItem[]> {
   const years = await fetchYears();
-  const activeYear = years.find((y) => y.id === yearId || y.code === yearId) || years[0];
+  const activeYear = yearId ? years.find((y) => y.id === yearId || y.code === yearId) : null;
   const targetYearId = activeYear ? activeYear.id : yearId;
-  const targetYearCode = activeYear ? activeYear.code : "FY";
 
-  if (isSupabaseConfigured() && targetYearId) {
+  if (isSupabaseConfigured()) {
     try {
-      const { data, error } = await supabase
-        .from("sessions")
-        .select("*")
-        .eq("year_id", targetYearId)
-        .order("created_at", { ascending: false });
+      let query = supabase.from("sessions").select("*").order("created_at", { ascending: false });
+      if (targetYearId) {
+        query = query.eq("year_id", targetYearId);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data && data.length > 0) {
         return data.map((s: any) => ({
@@ -313,15 +313,18 @@ export async function fetchSessions(yearId?: string): Promise<SessionItem[]> {
       }
 
       if (!error && (!data || data.length === 0)) {
-        const seedInfo = DEFAULT_SESSIONS_MAP[targetYearCode] || DEFAULT_SESSIONS_MAP.FY;
-        const seedPayload = {
-          year_id: targetYearId,
-          title: seedInfo.title,
-          description: seedInfo.description,
-          session_date: new Date().toISOString().split("T")[0],
-          venue: seedInfo.venue,
-          feedback_open: true
-        };
+        // Auto-seed default sessions for all 4 academic years into Supabase
+        const seedPayload = years.map((y) => {
+          const seedInfo = DEFAULT_SESSIONS_MAP[y.code] || DEFAULT_SESSIONS_MAP.FY;
+          return {
+            year_id: y.id,
+            title: seedInfo.title,
+            description: seedInfo.description,
+            session_date: new Date().toISOString().split("T")[0],
+            venue: seedInfo.venue,
+            feedback_open: true
+          };
+        });
 
         const { data: insertedSess } = await supabase
           .from("sessions")
@@ -329,7 +332,7 @@ export async function fetchSessions(yearId?: string): Promise<SessionItem[]> {
           .select();
 
         if (insertedSess && insertedSess.length > 0) {
-          return insertedSess.map((s: any) => ({
+          const mapped = insertedSess.map((s: any) => ({
             id: s.id,
             yearId: s.year_id,
             title: s.title,
@@ -338,32 +341,36 @@ export async function fetchSessions(yearId?: string): Promise<SessionItem[]> {
             venue: s.venue || "",
             feedbackOpen: Boolean(s.feedback_open)
           }));
+          return targetYearId ? mapped.filter((s) => s.yearId === targetYearId) : mapped;
         }
       }
     } catch {}
   }
 
-  const seedInfo = DEFAULT_SESSIONS_MAP[targetYearCode] || DEFAULT_SESSIONS_MAP.FY;
-  const fallbackSess: SessionItem = {
-    id: `sess-${targetYearCode.toLowerCase()}-default`,
-    yearId: targetYearId || "year-fy",
-    title: seedInfo.title,
-    description: seedInfo.description,
-    sessionDate: new Date().toISOString().split("T")[0],
-    venue: seedInfo.venue,
-    feedbackOpen: true
-  };
+  // Fallback Sessions for All 4 Academic Years
+  const allFallbackSessions: SessionItem[] = years.map((y) => {
+    const seedInfo = DEFAULT_SESSIONS_MAP[y.code] || DEFAULT_SESSIONS_MAP.FY;
+    return {
+      id: `sess-${y.code.toLowerCase()}-default`,
+      yearId: y.id,
+      title: seedInfo.title,
+      description: seedInfo.description,
+      sessionDate: new Date().toISOString().split("T")[0],
+      venue: seedInfo.venue,
+      feedbackOpen: true
+    };
+  });
 
   try {
     const raw = localStorage.getItem(LOCAL_SESSIONS_KEY);
     if (raw) {
       const list: SessionItem[] = JSON.parse(raw);
       const filtered = targetYearId ? list.filter((s) => s.yearId === targetYearId) : list;
-      return filtered.length > 0 ? filtered : [fallbackSess];
+      return filtered.length > 0 ? filtered : (targetYearId ? allFallbackSessions.filter(s => s.yearId === targetYearId) : allFallbackSessions);
     }
   } catch {}
 
-  return [fallbackSess];
+  return targetYearId ? allFallbackSessions.filter((s) => s.yearId === targetYearId) : allFallbackSessions;
 }
 
 export async function createSession(data: Partial<SessionItem>): Promise<SessionItem> {
@@ -459,17 +466,18 @@ export async function deleteSession(id: string): Promise<boolean> {
 
 export async function fetchQuestions(yearId?: string): Promise<QuestionItem[]> {
   const years = await fetchYears();
-  const activeYear = years.find((y) => y.id === yearId || y.code === yearId) || years[0];
+  const activeYear = yearId ? years.find((y) => y.id === yearId || y.code === yearId) : null;
   const targetYearId = activeYear ? activeYear.id : yearId;
   const targetYearCode = activeYear ? activeYear.code : "FY";
 
-  if (isSupabaseConfigured() && targetYearId) {
+  if (isSupabaseConfigured()) {
     try {
-      const { data, error } = await supabase
-        .from("questions")
-        .select("*")
-        .eq("year_id", targetYearId)
-        .order("order_index", { ascending: true });
+      let query = supabase.from("questions").select("*").order("order_index", { ascending: true });
+      if (targetYearId) {
+        query = query.eq("year_id", targetYearId);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data && data.length > 0) {
         return data.map((q: any) => ({
@@ -486,17 +494,20 @@ export async function fetchQuestions(yearId?: string): Promise<QuestionItem[]> {
       }
 
       if (!error && (!data || data.length === 0)) {
-        const defaultSet = DEFAULT_QUESTIONS_MAP[targetYearCode] || DEFAULT_QUESTIONS_MAP.FY;
-        const seedPayload = defaultSet.map((q) => ({
-          year_id: targetYearId,
-          label: q.label,
-          question_type: q.questionType,
-          options: q.options || [],
-          placeholder: q.placeholder || "",
-          helper_text: q.helperText || "",
-          is_required: Boolean(q.isRequired ?? true),
-          order_index: q.orderIndex ?? 1
-        }));
+        // Auto-seed default questions for all 4 academic years into Supabase
+        const seedPayload = years.flatMap((y) => {
+          const defaultSet = DEFAULT_QUESTIONS_MAP[y.code] || DEFAULT_QUESTIONS_MAP.FY;
+          return defaultSet.map((q) => ({
+            year_id: y.id,
+            label: q.label,
+            question_type: q.questionType,
+            options: q.options || [],
+            placeholder: q.placeholder || "",
+            helper_text: q.helperText || "",
+            is_required: Boolean(q.isRequired ?? true),
+            order_index: q.orderIndex ?? 1
+          }));
+        });
 
         const { data: insertedQuestions } = await supabase
           .from("questions")
@@ -504,7 +515,7 @@ export async function fetchQuestions(yearId?: string): Promise<QuestionItem[]> {
           .select();
 
         if (insertedQuestions && insertedQuestions.length > 0) {
-          return insertedQuestions.map((q: any) => ({
+          const mapped = insertedQuestions.map((q: any) => ({
             id: q.id,
             yearId: q.year_id,
             label: q.label,
@@ -515,6 +526,7 @@ export async function fetchQuestions(yearId?: string): Promise<QuestionItem[]> {
             isRequired: Boolean(q.is_required),
             orderIndex: q.order_index ?? 0
           }));
+          return targetYearId ? mapped.filter((q) => q.yearId === targetYearId) : mapped;
         }
       }
     } catch {}

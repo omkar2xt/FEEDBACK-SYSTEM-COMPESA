@@ -27,7 +27,14 @@ export function SessionManager({
   const [submitting, setSubmitting] = useState(false);
 
   const activeYearId = selectedYearId || (years[0]?.id ?? "");
-  const yearSessions = sessions.filter((s) => s.yearId === activeYearId);
+  const activeYearObj = years.find((y) => y.id === activeYearId || y.code === activeYearId);
+
+  const yearSessions = sessions.filter((s) => {
+    if (s.yearId === activeYearId) return true;
+    if (activeYearObj && (s.yearId === activeYearObj.id || s.yearId === activeYearObj.code)) return true;
+    if (activeYearObj && s.yearId && s.yearId.toLowerCase().includes(activeYearObj.code.toLowerCase())) return true;
+    return false;
+  });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

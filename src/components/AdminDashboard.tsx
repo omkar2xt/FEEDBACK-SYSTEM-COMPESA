@@ -894,7 +894,7 @@ export function AdminDashboard({ records, onLogout }: AdminDashboardProps) {
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => void handleDeleteRecord(record.id)}
+                        onClick={() => void handleDeleteRecord(record.id || "")}
                         className="rounded-lg bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-300 hover:bg-rose-500/40 transition"
                       >
                         Delete

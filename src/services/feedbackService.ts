@@ -153,6 +153,25 @@ export async function loginAdminBackend(username: string, password: string): Pro
 
 export async function flushQueuedFeedback() {}
 
+// Legacy Export for FeedbackWizard Compatibility
+export async function saveFeedback(data: any): Promise<"saved" | "queued"> {
+  return submitMultiYearFeedback({
+    sessionId: data.sessionId || "default-session",
+    yearId: data.yearId || "year-fy",
+    studentName: data.name || "Anonymous",
+    division: data.division || "A",
+    rollNo: data.rollNo || "01",
+    overallRating: data.rating || 5,
+    recommendation: data.wouldRecommend ? "Yes" : "Maybe",
+    answers: [
+      {
+        questionId: "default-q1",
+        answerValue: data.message || ""
+      }
+    ]
+  });
+}
+
 // ============================================
 // YEARS API & DIRECT SUPABASE METHODS
 // ============================================
@@ -314,10 +333,10 @@ export async function fetchSessions(yearId?: string): Promise<SessionItem[]> {
 export async function createSession(data: Partial<SessionItem>): Promise<SessionItem> {
   const payload = {
     year_id: data.yearId,
-    title: sanitizeText(data.title, 200),
-    description: sanitizeText(data.description, 1000),
+    title: sanitizeText(data.title || "", 200),
+    description: sanitizeText(data.description || "", 1000),
     session_date: data.sessionDate || null,
-    venue: sanitizeText(data.venue, 100),
+    venue: sanitizeText(data.venue || "", 100),
     feedback_open: Boolean(data.feedbackOpen ?? true)
   };
 
@@ -346,10 +365,10 @@ export async function createSession(data: Partial<SessionItem>): Promise<Session
   const newSess: SessionItem = {
     id: `sess-local-${Date.now()}`,
     yearId: data.yearId || "year-fy",
-    title: sanitizeText(data.title, 200) || "New Session",
-    description: sanitizeText(data.description, 1000),
+    title: sanitizeText(data.title || "", 200) || "New Session",
+    description: sanitizeText(data.description || "", 1000),
     sessionDate: data.sessionDate || new Date().toISOString().split("T")[0],
-    venue: sanitizeText(data.venue, 100) || "Hall 1",
+    venue: sanitizeText(data.venue || "", 100) || "Hall 1",
     feedbackOpen: Boolean(data.feedbackOpen ?? true)
   };
 
@@ -363,10 +382,10 @@ export async function updateSession(id: string, data: Partial<SessionItem>): Pro
   if (isSupabaseConfigured()) {
     try {
       const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() };
-      if (data.title !== undefined) updatePayload.title = sanitizeText(data.title, 200);
-      if (data.description !== undefined) updatePayload.description = sanitizeText(data.description, 1000);
+      if (data.title !== undefined) updatePayload.title = sanitizeText(data.title || "", 200);
+      if (data.description !== undefined) updatePayload.description = sanitizeText(data.description || "", 1000);
       if (data.sessionDate !== undefined) updatePayload.session_date = data.sessionDate;
-      if (data.venue !== undefined) updatePayload.venue = sanitizeText(data.venue, 100);
+      if (data.venue !== undefined) updatePayload.venue = sanitizeText(data.venue || "", 100);
       if (data.feedbackOpen !== undefined) updatePayload.feedback_open = data.feedbackOpen;
 
       const { error } = await supabase
@@ -493,11 +512,11 @@ export async function fetchQuestions(yearId?: string): Promise<QuestionItem[]> {
 export async function createQuestion(data: Partial<QuestionItem>): Promise<QuestionItem> {
   const payload = {
     year_id: data.yearId,
-    label: sanitizeText(data.label, 300),
+    label: sanitizeText(data.label || "", 300),
     question_type: data.questionType || "short_text",
-    options: (data.options || []).map((opt) => sanitizeText(opt, 200)),
-    placeholder: sanitizeText(data.placeholder, 200),
-    helper_text: sanitizeText(data.helperText, 300),
+    options: (data.options || []).map((opt) => sanitizeText(opt || "", 200)),
+    placeholder: sanitizeText(data.placeholder || "", 200),
+    helper_text: sanitizeText(data.helperText || "", 300),
     is_required: Boolean(data.isRequired ?? true),
     order_index: data.orderIndex ?? 0
   };
@@ -529,11 +548,11 @@ export async function createQuestion(data: Partial<QuestionItem>): Promise<Quest
   const newQ: QuestionItem = {
     id: `q-local-${Date.now()}`,
     yearId: data.yearId || "year-fy",
-    label: sanitizeText(data.label, 300) || "New Question",
+    label: sanitizeText(data.label || "", 300) || "New Question",
     questionType: data.questionType || "short_text",
-    options: (data.options || []).map((opt) => sanitizeText(opt, 200)),
-    placeholder: sanitizeText(data.placeholder, 200),
-    helperText: sanitizeText(data.helperText, 300),
+    options: (data.options || []).map((opt) => sanitizeText(opt || "", 200)),
+    placeholder: sanitizeText(data.placeholder || "", 200),
+    helperText: sanitizeText(data.helperText || "", 300),
     isRequired: Boolean(data.isRequired ?? true),
     orderIndex: data.orderIndex ?? 0
   };
@@ -548,11 +567,11 @@ export async function updateQuestion(id: string, data: Partial<QuestionItem>): P
   if (isSupabaseConfigured()) {
     try {
       const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() };
-      if (data.label !== undefined) updatePayload.label = sanitizeText(data.label, 300);
+      if (data.label !== undefined) updatePayload.label = sanitizeText(data.label || "", 300);
       if (data.questionType !== undefined) updatePayload.question_type = data.questionType;
-      if (data.options !== undefined) updatePayload.options = data.options.map((opt) => sanitizeText(opt, 200));
-      if (data.placeholder !== undefined) updatePayload.placeholder = sanitizeText(data.placeholder, 200);
-      if (data.helperText !== undefined) updatePayload.helper_text = sanitizeText(data.helperText, 300);
+      if (data.options !== undefined) updatePayload.options = data.options.map((opt) => sanitizeText(opt || "", 200));
+      if (data.placeholder !== undefined) updatePayload.placeholder = sanitizeText(data.placeholder || "", 200);
+      if (data.helperText !== undefined) updatePayload.helper_text = sanitizeText(data.helperText || "", 300);
       if (data.isRequired !== undefined) updatePayload.is_required = data.isRequired;
       if (data.orderIndex !== undefined) updatePayload.order_index = data.orderIndex;
 
@@ -650,7 +669,7 @@ export async function submitMultiYearFeedback(input: MultiYearResponseInput): Pr
         division: cleanDivision,
         roll_no: cleanRollNo,
         overall_rating: overallRating,
-        recommendation: sanitizeText(input.recommendation, 10) || "Yes",
+        recommendation: sanitizeText(input.recommendation || "Yes", 10),
         sentiment,
         submitted_at: new Date().toISOString()
       })
@@ -737,7 +756,7 @@ export async function submitMultiYearFeedback(input: MultiYearResponseInput): Pr
     speakerSupport: "Good",
     impactPlan: "Improving skills",
     impactPlans: ["Improving skills"],
-    recommendation: sanitizeText(input.recommendation, 10) || "Yes",
+    recommendation: sanitizeText(input.recommendation || "Yes", 10),
     createdAt: Date.now(),
     sentiment: (input.overallRating || 5) >= 4 ? "Positive" : "Neutral",
     sentimentScore: (input.overallRating || 5) / 5,
@@ -864,7 +883,9 @@ export async function fetchFeedback(): Promise<FeedbackRecord[]> {
             rollNo: row.roll_no
           };
 
-          combinedMap.set(record.id, record);
+          if (record.id) {
+            combinedMap.set(record.id, record);
+          }
         });
       }
 
@@ -924,7 +945,7 @@ export async function fetchFeedback(): Promise<FeedbackRecord[]> {
         }
         rec.yearCode = recYearCode || "FY";
 
-        if (!combinedMap.has(rec.id)) {
+        if (rec.id && !combinedMap.has(rec.id)) {
           combinedMap.set(rec.id, rec);
         }
       });

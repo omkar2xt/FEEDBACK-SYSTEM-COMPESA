@@ -77,7 +77,7 @@ export interface MultiYearResponseInput {
   division: string;
   rollNo: string;
   overallRating?: number;
-  recommendation?: RecommendationChoice;
+  recommendation?: RecommendationChoice | string;
   answers: AnswerInput[];
 }
 
@@ -94,15 +94,15 @@ export interface ResponseRecord {
   id: string;
   sessionId: string;
   yearId: string;
-  yearCode?: YearCode;
+  yearCode?: YearCode | string;
   yearLabel?: string;
   sessionTitle?: string;
   studentName: string;
   division: string;
   rollNo: string;
   overallRating: number;
-  recommendation: RecommendationChoice;
-  sentiment: SentimentLabel;
+  recommendation: RecommendationChoice | string;
+  sentiment: SentimentLabel | string;
   submittedAt: number;
   answers?: AnswerRecord[];
 }
@@ -137,14 +137,33 @@ export interface AnalysisResult {
   thankYouMessage: string;
 }
 
-export interface FeedbackRecord extends FeedbackInput {
+export interface FeedbackRecord {
   id?: string;
+  name: string;
+  email?: string;
+  mood?: Mood;
+  rating: number;
+  category?: "UX" | "Performance" | "Features" | "Support" | string;
+  message: string;
+  wouldRecommend?: boolean;
+  followUp?: string;
+  overallExperience?: OverallExperience;
+  learningOutcome?: LearningOutcome | string;
+  mostUsefulTopic?: MostUsefulTopic | string;
+  clarity?: ClarityLevel | string;
+  engagement?: EngagementLevel | string;
+  speakerSupport?: SpeakerSupportLevel | string;
+  impactPlan?: ImpactPlan | string;
+  impactPlans?: ImpactPlan[] | string[];
+  recommendation?: RecommendationChoice | string;
+  suggestions?: string;
   createdAt: number;
-  sentiment: SentimentLabel;
-  sentimentScore: number;
-  summary: string;
-  // Multi-year fields (optional for backward compatibility)
-  yearCode?: YearCode;
+  sentiment?: SentimentLabel | string;
+  sentimentScore?: number;
+  summary?: string;
+  // Multi-year fields
+  yearId?: string;
+  yearCode?: YearCode | string;
   sessionTitle?: string;
   division?: string;
   rollNo?: string;

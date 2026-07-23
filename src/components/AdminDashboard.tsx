@@ -27,6 +27,7 @@ import {
 } from "../services/feedbackService";
 import type { FeedbackRecord, QuestionItem, SessionItem, YearItem } from "../types";
 import { MagneticButton } from "./MagneticButton";
+import { CoordinatorManager } from "./CoordinatorManager";
 import { QuestionBuilder } from "./QuestionBuilder";
 import { SessionManager } from "./SessionManager";
 import { YearAccessControl } from "./YearAccessControl";
@@ -46,7 +47,7 @@ const RATING_BAR_COLORS = [
 
 const PIE_COLORS = ["#34D399", "#38BDF8", "#FACC15", "#F43F5E"];
 
-type AdminTab = "analytics" | "years" | "sessions" | "questions";
+type AdminTab = "analytics" | "years" | "sessions" | "questions" | "coordinators";
 
 const BarCustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -670,7 +671,8 @@ export function AdminDashboard({ records, onLogout }: AdminDashboardProps) {
           { id: "analytics", label: "📊 Overview & Analytics" },
           { id: "years", label: "🔒 Year Access Control" },
           { id: "sessions", label: "📅 Session Manager" },
-          { id: "questions", label: "✏️ Question Builder" }
+          { id: "questions", label: "✏️ Question Builder" },
+          { id: "coordinators", label: "👔 Coordinator Management" }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -945,6 +947,13 @@ export function AdminDashboard({ records, onLogout }: AdminDashboardProps) {
             onUpdateQuestion={handleUpdateQuestion}
             onDeleteQuestion={handleDeleteQuestion}
           />
+        </div>
+      )}
+
+      {/* TAB 5: COORDINATOR MANAGEMENT */}
+      {activeTab === "coordinators" && (
+        <div className="rounded-2xl border border-white/15 bg-panel p-6 shadow-glass backdrop-blur-xl">
+          <CoordinatorManager />
         </div>
       )}
     </section>

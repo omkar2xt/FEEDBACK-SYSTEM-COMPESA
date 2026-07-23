@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
+  CoordinatorItem,
   FeedbackRecord,
   MultiYearResponseInput,
   QuestionItem,
@@ -1044,3 +1045,233 @@ export function subscribeFeedbackRealtime(
     }
   };
 }
+
+// ============================================
+// COORDINATORS API & DIRECT SUPABASE METHODS
+// ============================================
+
+const LOCAL_COORDINATORS_KEY = "local_coordinators_v1";
+
+const DEFAULT_COORDINATORS: CoordinatorItem[] = [
+  {
+    id: "coord-default-1",
+    name: "Omkar Gurav",
+    role: "Student Coordinator",
+    email: "omkar@email.com",
+    phone: "+91 98765 43210",
+    linkedinUrl: "https://linkedin.com",
+    githubUrl: "https://github.com",
+    photoUrl: "",
+    displayOrder: 1,
+    isActive: true
+  }
+];
+
+export async function fetchCoordinators(): Promise<CoordinatorItem[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from("coordinators")
+        .select("*")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          role: c.role,
+          email: c.email || "",
+          phone: c.phone || "",
+          linkedinUrl: c.linkedin_url || "",
+          githubUrl: c.github_url || "",
+          photoUrl: c.photo_url || "",
+          displayOrder: c.display_order ?? 0,
+          isActive: Boolean(c.is_active),
+          createdAt: c.created_at,
+          updatedAt: c.updated_at
+        }));
+      }
+
+      if (!error && (!data || data.length === 0)) {
+        const seedPayload = DEFAULT_COORDINATORS.map((c) => ({
+          name: c.name,
+          role: c.role,
+          email: c.email,
+          phone: c.phone,
+          linkedin_url: c.linkedinUrl,
+          github_url: c.githubUrl,
+          photo_url: c.photoUrl,
+          display_order: c.displayOrder,
+          is_active: c.isActive
+        }));
+
+        const { data: seeded } = await supabase.from("coordinators").insert(seedPayload).select();
+        if (seeded && seeded.length > 0) {
+          return seeded.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            role: c.role,
+            email: c.email || "",
+            phone: c.phone || "",
+            linkedinUrl: c.linkedin_url || "",
+            githubUrl: c.github_url || "",
+            photoUrl: c.photo_url || "",
+            displayOrder: c.display_order ?? 0,
+            isActive: Boolean(c.is_active)
+          }));
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_COORDINATORS_KEY);
+    if (raw) {
+      const list: CoordinatorItem[] = JSON.parse(raw);
+      const activeOnly = list.filter((c) => c.isActive).sort((a, b) => a.displayOrder - b.displayOrder);
+      return activeOnly.length > 0 ? activeOnly : DEFAULT_COORDINATORS;
+    }
+  } catch {}
+
+  return DEFAULT_COORDINATORS;
+}
+
+export async function fetchAllCoordinatorsAdmin(): Promise<CoordinatorItem[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from("coordinators")
+        .select("*")
+        .order("display_order", { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          role: c.role,
+          email: c.email || "",
+          phone: c.phone || "",
+          linkedinUrl: c.linkedin_url || "",
+          githubUrl: c.github_url || "",
+          photoUrl: c.photo_url || "",
+          displayOrder: c.display_order ?? 0,
+          isActive: Boolean(c.is_active),
+          createdAt: c.created_at,
+          updatedAt: c.updated_at
+        }));
+      }
+    } catch {}
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_COORDINATORS_KEY);
+    if (raw) {
+      const list: CoordinatorItem[] = JSON.parse(raw);
+      return list.sort((a, b) => a.displayOrder - b.displayOrder);
+    }
+  } catch {}
+
+  return DEFAULT_COORDINATORS;
+}
+
+export async function createCoordinator(data: Partial<CoordinatorItem>): Promise<CoordinatorItem> {
+  const payload = {
+    name: sanitizeText(data.name || "Coordinator", 100),
+    role: sanitizeText(data.role || "Student Coordinator", 100),
+    email: sanitizeText(data.email || "", 150),
+    phone: sanitizeText(data.phone || "", 50),
+    linkedin_url: sanitizeText(data.linkedinUrl || "", 300),
+    github_url: sanitizeText(data.githubUrl || "", 300),
+    photo_url: data.photoUrl || "",
+    display_order: data.displayOrder ?? 1,
+    is_active: Boolean(data.isActive ?? true)
+  };
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: inserted, error } = await supabase
+        .from("coordinators")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (!error && inserted) {
+        return {
+          id: inserted.id,
+          name: inserted.name,
+          role: inserted.role,
+          email: inserted.email || "",
+          phone: inserted.phone || "",
+          linkedinUrl: inserted.linkedin_url || "",
+          githubUrl: inserted.github_url || "",
+          photoUrl: inserted.photo_url || "",
+          displayOrder: inserted.display_order ?? 1,
+          isActive: Boolean(inserted.is_active)
+        };
+      }
+    } catch {}
+  }
+
+  const newC: CoordinatorItem = {
+    id: `coord-local-${Date.now()}`,
+    name: payload.name,
+    role: payload.role,
+    email: payload.email,
+    phone: payload.phone,
+    linkedinUrl: payload.linkedin_url,
+    githubUrl: payload.github_url,
+    photoUrl: payload.photo_url,
+    displayOrder: payload.display_order,
+    isActive: payload.is_active
+  };
+
+  const list = await fetchAllCoordinatorsAdmin();
+  list.push(newC);
+  localStorage.setItem(LOCAL_COORDINATORS_KEY, JSON.stringify(list));
+  return newC;
+}
+
+export async function updateCoordinator(id: string, data: Partial<CoordinatorItem>): Promise<boolean> {
+  if (isSupabaseConfigured()) {
+    try {
+      const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (data.name !== undefined) updatePayload.name = sanitizeText(data.name || "", 100);
+      if (data.role !== undefined) updatePayload.role = sanitizeText(data.role || "", 100);
+      if (data.email !== undefined) updatePayload.email = sanitizeText(data.email || "", 150);
+      if (data.phone !== undefined) updatePayload.phone = sanitizeText(data.phone || "", 50);
+      if (data.linkedinUrl !== undefined) updatePayload.linkedin_url = sanitizeText(data.linkedinUrl || "", 300);
+      if (data.githubUrl !== undefined) updatePayload.github_url = sanitizeText(data.githubUrl || "", 300);
+      if (data.photoUrl !== undefined) updatePayload.photo_url = data.photoUrl;
+      if (data.displayOrder !== undefined) updatePayload.display_order = data.displayOrder;
+      if (data.isActive !== undefined) updatePayload.is_active = data.isActive;
+
+      const { error } = await supabase.from("coordinators").update(updatePayload).eq("id", id);
+      if (!error) return true;
+    } catch {}
+  }
+
+  const list = await fetchAllCoordinatorsAdmin();
+  const updated = list.map((c) => (c.id === id ? { ...c, ...data } : c));
+  localStorage.setItem(LOCAL_COORDINATORS_KEY, JSON.stringify(updated));
+  return true;
+}
+
+export async function deleteCoordinator(id: string): Promise<boolean> {
+  if (isSupabaseConfigured()) {
+    try {
+      const { error } = await supabase.from("coordinators").delete().eq("id", id);
+      if (!error) return true;
+    } catch {}
+  }
+
+  const list = await fetchAllCoordinatorsAdmin();
+  const filtered = list.filter((c) => c.id !== id);
+  localStorage.setItem(LOCAL_COORDINATORS_KEY, JSON.stringify(filtered));
+  return true;
+}
+
+export async function toggleCoordinatorStatus(id: string, isActive: boolean): Promise<boolean> {
+  return updateCoordinator(id, { isActive });
+}
+

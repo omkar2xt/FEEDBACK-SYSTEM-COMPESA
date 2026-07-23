@@ -15,6 +15,7 @@ import type {
   SessionItem,
   YearItem
 } from "../types";
+import { ContactUs } from "./ContactUs";
 import { DynamicQuestionRenderer } from "./DynamicQuestionRenderer";
 import { LiquidProgress } from "./LiquidProgress";
 import { MagneticButton } from "./MagneticButton";
@@ -44,7 +45,7 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
-  const [activeStep, setActiveStep] = useState<"year" | "session" | "identity" | "questions">("year");
+  const [activeStep, setActiveStep] = useState<"year" | "session" | "contact" | "identity" | "questions">("year");
   const [questionIndex, setQuestionIndex] = useState(0);
 
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,7 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
     click();
     setError("");
     setSelectedSession(session);
-    setActiveStep("identity");
+    setActiveStep("contact");
   };
 
   const handleProceedFromIdentity = () => {
@@ -112,7 +113,6 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
       setQuestionIndex(0);
       setActiveStep("questions");
     } else {
-      // If no dynamic questions configured for year, proceed to submit
       void handleSubmit();
     }
   };
@@ -148,8 +148,12 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
     }
   };
 
+  const handleAnswerChange = (qId: string, value: any) => {
+    setAnswers((prev) => ({ ...prev, [qId]: value }));
+  };
+
   const handleSubmit = async () => {
-    if (!selectedYear || !selectedSession) return;
+    if (!selectedSession || !selectedYear) return;
     setSubmitting(true);
     setError("");
 
@@ -158,24 +162,22 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
       answerValue: val
     }));
 
-    // Extract overall rating from star_rating or emoji_rating questions
-    const ratingQ = questions.find((q) => q.questionType === "star_rating" || q.questionType === "emoji_rating");
     let overallRating = 5;
-    if (ratingQ && answers[ratingQ.id] !== undefined) {
-      const val = answers[ratingQ.id];
-      if (typeof val === "number" && !isNaN(val)) overallRating = val;
-      else if (!isNaN(Number(val))) overallRating = Number(val);
-      else if (typeof val === "string") {
-        if (val.includes("😍") || val.toLowerCase().includes("excellent") || val.toLowerCase().includes("happy")) overallRating = 5;
-        else if (val.includes("🙂") || val.toLowerCase().includes("good")) overallRating = 4;
-        else if (val.includes("😐") || val.toLowerCase().includes("average") || val.toLowerCase().includes("neutral")) overallRating = 3;
-        else if (val.includes("🙁") || val.toLowerCase().includes("poor") || val.toLowerCase().includes("sad")) overallRating = 2;
-      }
+    let recommendation = "Yes";
+
+    const ratingQ = questions.find((q) => q.questionType === "star_rating" || q.questionType === "emoji_rating");
+    if (ratingQ && answers[ratingQ.id]) {
+      const parsed = Number(answers[ratingQ.id]);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) overallRating = parsed;
     }
 
-    // Find recommendation question value if present
-    const recQ = questions.find((q) => q.questionType === "yes_no" || q.label.toLowerCase().includes("recommend"));
-    const recommendation = recQ && answers[recQ.id] === "No" ? "No" : "Yes";
+    const recQ = questions.find((q) => q.questionType === "yes_no" || q.questionType === "single_choice");
+    if (recQ && answers[recQ.id]) {
+      const strVal = String(answers[recQ.id]);
+      if (strVal.toLowerCase().includes("yes")) recommendation = "Yes";
+      else if (strVal.toLowerCase().includes("no")) recommendation = "No";
+      else recommendation = "Maybe";
+    }
 
     try {
       await submitMultiYearFeedback({
@@ -206,11 +208,12 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
   };
 
   // Progress Calculation
-  const totalSteps = 3 + (questions.length || 1);
+  const totalSteps = 4 + (questions.length || 1);
   let currentStepNum = 1;
   if (activeStep === "session") currentStepNum = 2;
-  if (activeStep === "identity") currentStepNum = 3;
-  if (activeStep === "questions") currentStepNum = 4 + questionIndex;
+  if (activeStep === "contact") currentStepNum = 3;
+  if (activeStep === "identity") currentStepNum = 4;
+  if (activeStep === "questions") currentStepNum = 5 + questionIndex;
   const progressPercent = Math.min(100, (currentStepNum / totalSteps) * 100);
 
   return (
@@ -260,14 +263,21 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
               </div>
             )}
 
+            {activeStep === "contact" && (
+              <ContactUs
+                onStartFeedback={() => setActiveStep("identity")}
+                onBack={() => setActiveStep("session")}
+              />
+            )}
+
             {activeStep === "identity" && selectedSession && (
               <div className="space-y-4">
                 <button
                   type="button"
-                  onClick={() => setActiveStep("session")}
+                  onClick={() => setActiveStep("contact")}
                   className="mb-2 text-xs font-semibold text-cyan-300 hover:underline"
                 >
-                  ← Back to Sessions ({selectedSession.title})
+                  ← Back to Contact Us / Coordinator Info
                 </button>
                 <TypingQuestion text="Please enter your student details" />
 
@@ -302,47 +312,48 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
                       type="text"
                       value={rollNo}
                       onChange={(e) => setRollNo(e.target.value)}
-                      placeholder="e.g. 101"
+                      placeholder="e.g. 21CS101"
                       className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-4 py-3 text-white outline-none focus:ring focus:ring-cyan-300/60"
                     />
                   </div>
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <MagneticButton onClick={handleProceedFromIdentity}>
+                    Continue to Questions →
+                  </MagneticButton>
                 </div>
               </div>
             )}
 
             {activeStep === "questions" && currentQuestion && (
-              <DynamicQuestionRenderer
-                question={currentQuestion}
-                value={answers[currentQuestion.id]}
-                onChange={(val) => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: val }))}
-              />
+              <div className="space-y-6">
+                <DynamicQuestionRenderer
+                  question={currentQuestion}
+                  value={answers[currentQuestion.id]}
+                  onChange={(val) => handleAnswerChange(currentQuestion.id, val)}
+                />
+
+                <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                  <MagneticButton onClick={backQuestion}>
+                    ← Back
+                  </MagneticButton>
+
+                  <MagneticButton onClick={nextQuestion} disabled={submitting}>
+                    {submitting
+                      ? "Submitting..."
+                      : questionIndex === questions.length - 1
+                      ? "Submit Feedback ✨"
+                      : "Next Question →"}
+                  </MagneticButton>
+                </div>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>
       )}
 
-      {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
-
-      <div className="mt-6 flex flex-wrap gap-3">
-        {activeStep === "identity" && (
-          <MagneticButton onClick={handleProceedFromIdentity}>
-            Continue to Questions →
-          </MagneticButton>
-        )}
-
-        {activeStep === "questions" && (
-          <>
-            <MagneticButton onClick={backQuestion}>Back</MagneticButton>
-            <MagneticButton onClick={nextQuestion} disabled={submitting}>
-              {submitting
-                ? "Submitting..."
-                : questionIndex === questions.length - 1
-                ? "Submit Feedback"
-                : "Next Question →"}
-            </MagneticButton>
-          </>
-        )}
-      </div>
+      {error && <p className="mt-4 text-sm font-semibold text-rose-300">{error}</p>}
     </section>
   );
 }

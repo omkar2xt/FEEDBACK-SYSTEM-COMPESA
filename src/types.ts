@@ -168,3 +168,19 @@ export interface FeedbackRecord {
   division?: string;
   rollNo?: string;
 }
+
+// Coordinator Item Interface
+export interface CoordinatorItem {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  linkedinUrl?: string;
+  githubUrl?: string;
+  photoUrl?: string;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt?: number | string;
+  updatedAt?: number | string;
+}

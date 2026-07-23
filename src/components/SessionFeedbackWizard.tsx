@@ -164,10 +164,27 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
     let overallRating = 5;
     let recommendation = "Yes";
 
-    const ratingQ = questions.find((q) => q.questionType === "star_rating" || q.questionType === "emoji_rating");
-    if (ratingQ && answers[ratingQ.id]) {
-      const parsed = Number(answers[ratingQ.id]);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) overallRating = parsed;
+    const starQ = questions.find((q) => q.questionType === "star_rating");
+    const emojiQ = questions.find((q) => q.questionType === "emoji_rating");
+
+    if (starQ && answers[starQ.id] !== undefined && answers[starQ.id] !== null && answers[starQ.id] !== "") {
+      const parsed = Number(answers[starQ.id]);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+        overallRating = parsed;
+      }
+    } else if (emojiQ && answers[emojiQ.id] !== undefined && answers[emojiQ.id] !== null) {
+      const valStr = String(answers[emojiQ.id]).toLowerCase();
+      if (valStr.includes("1") || valStr.includes("poor") || valStr.includes("terrible") || valStr.includes("bad")) {
+        overallRating = 1;
+      } else if (valStr.includes("2") || valStr.includes("fair")) {
+        overallRating = 2;
+      } else if (valStr.includes("3") || valStr.includes("average") || valStr.includes("okay")) {
+        overallRating = 3;
+      } else if (valStr.includes("4") || valStr.includes("good")) {
+        overallRating = 4;
+      } else if (valStr.includes("5") || valStr.includes("excellent") || valStr.includes("awesome") || valStr.includes("great")) {
+        overallRating = 5;
+      }
     }
 
     const recQ = questions.find((q) => q.questionType === "yes_no" || q.questionType === "single_choice");

@@ -187,12 +187,27 @@ export function SessionFeedbackWizard({ onSubmitted, click, success }: SessionFe
       }
     }
 
-    const recQ = questions.find((q) => q.questionType === "yes_no" || q.questionType === "single_choice");
-    if (recQ && answers[recQ.id]) {
-      const strVal = String(answers[recQ.id]);
-      if (strVal.toLowerCase().includes("yes")) recommendation = "Yes";
-      else if (strVal.toLowerCase().includes("no")) recommendation = "No";
+    const yesNoQ = questions.find((q) => q.questionType === "yes_no");
+    if (yesNoQ && answers[yesNoQ.id] !== undefined && answers[yesNoQ.id] !== null) {
+      const valStr = String(answers[yesNoQ.id]).trim().toLowerCase();
+      if (valStr.includes("yes")) recommendation = "Yes";
+      else if (valStr.includes("no")) recommendation = "No";
       else recommendation = "Maybe";
+    } else {
+      let foundMatch = false;
+      for (const q of questions) {
+        if (answers[q.id] !== undefined && answers[q.id] !== null) {
+          const valStr = String(answers[q.id]).trim().toLowerCase();
+          if (valStr === "yes" || valStr === "no" || valStr === "maybe") {
+            recommendation = valStr === "yes" ? "Yes" : valStr === "no" ? "No" : "Maybe";
+            foundMatch = true;
+            break;
+          }
+        }
+      }
+      if (!foundMatch) {
+        recommendation = "Yes";
+      }
     }
 
     try {

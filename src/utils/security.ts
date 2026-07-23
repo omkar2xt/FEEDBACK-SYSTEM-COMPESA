@@ -3,7 +3,7 @@
  */
 
 /**
- * Strips HTML tags and escapes dangerous characters to prevent XSS.
+ * Strips HTML tags and escapes dangerous characters to prevent XSS without corrupting slashes in text/URLs.
  */
 export function sanitizeText(input: string | null | undefined, maxLength = 1000): string {
   if (!input) return "";
@@ -13,12 +13,11 @@ export function sanitizeText(input: string | null | undefined, maxLength = 1000)
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;");
+    .replace(/'/g, "&#x27;");
 }
 
 /**
- * Decodes HTML entities safely for plain display when needed.
+ * Decodes HTML entities safely for plain display or URL rendering.
  */
 export function decodeSanitizedText(input: string | null | undefined): string {
   if (!input) return "";
@@ -29,6 +28,20 @@ export function decodeSanitizedText(input: string | null | undefined): string {
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/g, "'")
     .replace(/&#x2F;/g, "/");
+}
+
+/**
+ * Formats and sanitizes external URLs to ensure clean https:// protocols without HTML entity corruption.
+ */
+export function sanitizeUrl(input: string | null | undefined): string {
+  if (!input) return "";
+  let clean = decodeSanitizedText(String(input).trim());
+  clean = clean.replace(/&#x2F;/g, "/").replace(/&amp;/g, "&");
+  if (!clean) return "";
+  if (clean.startsWith("http://") || clean.startsWith("https://")) {
+    return clean;
+  }
+  return `https://${clean}`;
 }
 
 /**

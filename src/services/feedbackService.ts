@@ -10,10 +10,12 @@ import type {
 } from "../types";
 import {
   checkLoginRateLimit,
+  decodeSanitizedText,
   hashPassword,
   recordFailedLoginAttempt,
   resetLoginRateLimit,
   sanitizeText,
+  sanitizeUrl,
   timingSafeCompare,
   validateStudentInput
 } from "../utils/security";
@@ -1193,8 +1195,8 @@ export async function fetchCoordinators(): Promise<CoordinatorItem[]> {
           role: c.role,
           email: c.email || "",
           phone: c.phone || "",
-          linkedinUrl: c.linkedin_url || "",
-          githubUrl: c.github_url || "",
+          linkedinUrl: sanitizeUrl(c.linkedin_url),
+          githubUrl: sanitizeUrl(c.github_url),
           photoUrl: c.photo_url || "",
           displayOrder: c.display_order ?? 0,
           isActive: Boolean(c.is_active),
@@ -1209,8 +1211,8 @@ export async function fetchCoordinators(): Promise<CoordinatorItem[]> {
           role: c.role,
           email: c.email,
           phone: c.phone,
-          linkedin_url: c.linkedinUrl,
-          github_url: c.githubUrl,
+          linkedin_url: sanitizeUrl(c.linkedinUrl),
+          github_url: sanitizeUrl(c.githubUrl),
           photo_url: c.photoUrl,
           display_order: c.displayOrder,
           is_active: c.isActive
@@ -1224,8 +1226,8 @@ export async function fetchCoordinators(): Promise<CoordinatorItem[]> {
             role: c.role,
             email: c.email || "",
             phone: c.phone || "",
-            linkedinUrl: c.linkedin_url || "",
-            githubUrl: c.github_url || "",
+            linkedinUrl: sanitizeUrl(c.linkedin_url),
+            githubUrl: sanitizeUrl(c.github_url),
             photoUrl: c.photo_url || "",
             displayOrder: c.display_order ?? 0,
             isActive: Boolean(c.is_active)
@@ -1240,7 +1242,7 @@ export async function fetchCoordinators(): Promise<CoordinatorItem[]> {
     if (raw) {
       const list: CoordinatorItem[] = JSON.parse(raw);
       const activeOnly = list.filter((c) => c.isActive).sort((a, b) => a.displayOrder - b.displayOrder);
-      return activeOnly.length > 0 ? activeOnly : DEFAULT_COORDINATORS;
+      return activeOnly.length > 0 ? activeOnly.map(c => ({ ...c, linkedinUrl: sanitizeUrl(c.linkedinUrl), githubUrl: sanitizeUrl(c.githubUrl) })) : DEFAULT_COORDINATORS;
     }
   } catch {}
 
@@ -1262,8 +1264,8 @@ export async function fetchAllCoordinatorsAdmin(): Promise<CoordinatorItem[]> {
           role: c.role,
           email: c.email || "",
           phone: c.phone || "",
-          linkedinUrl: c.linkedin_url || "",
-          githubUrl: c.github_url || "",
+          linkedinUrl: sanitizeUrl(c.linkedin_url),
+          githubUrl: sanitizeUrl(c.github_url),
           photoUrl: c.photo_url || "",
           displayOrder: c.display_order ?? 0,
           isActive: Boolean(c.is_active),
@@ -1278,7 +1280,7 @@ export async function fetchAllCoordinatorsAdmin(): Promise<CoordinatorItem[]> {
     const raw = localStorage.getItem(LOCAL_COORDINATORS_KEY);
     if (raw) {
       const list: CoordinatorItem[] = JSON.parse(raw);
-      return list.sort((a, b) => a.displayOrder - b.displayOrder);
+      return list.sort((a, b) => a.displayOrder - b.displayOrder).map(c => ({ ...c, linkedinUrl: sanitizeUrl(c.linkedinUrl), githubUrl: sanitizeUrl(c.githubUrl) }));
     }
   } catch {}
 
@@ -1291,8 +1293,8 @@ export async function createCoordinator(data: Partial<CoordinatorItem>): Promise
     role: sanitizeText(data.role || "Student Coordinator", 100),
     email: sanitizeText(data.email || "", 150),
     phone: sanitizeText(data.phone || "", 50),
-    linkedin_url: sanitizeText(data.linkedinUrl || "", 300),
-    github_url: sanitizeText(data.githubUrl || "", 300),
+    linkedin_url: sanitizeUrl(data.linkedinUrl),
+    github_url: sanitizeUrl(data.githubUrl),
     photo_url: data.photoUrl || "",
     display_order: data.displayOrder ?? 1,
     is_active: Boolean(data.isActive ?? true)
@@ -1313,8 +1315,8 @@ export async function createCoordinator(data: Partial<CoordinatorItem>): Promise
           role: inserted.role,
           email: inserted.email || "",
           phone: inserted.phone || "",
-          linkedinUrl: inserted.linkedin_url || "",
-          githubUrl: inserted.github_url || "",
+          linkedinUrl: sanitizeUrl(inserted.linkedin_url),
+          githubUrl: sanitizeUrl(inserted.github_url),
           photoUrl: inserted.photo_url || "",
           displayOrder: inserted.display_order ?? 1,
           isActive: Boolean(inserted.is_active)
@@ -1350,8 +1352,8 @@ export async function updateCoordinator(id: string, data: Partial<CoordinatorIte
       if (data.role !== undefined) updatePayload.role = sanitizeText(data.role || "", 100);
       if (data.email !== undefined) updatePayload.email = sanitizeText(data.email || "", 150);
       if (data.phone !== undefined) updatePayload.phone = sanitizeText(data.phone || "", 50);
-      if (data.linkedinUrl !== undefined) updatePayload.linkedin_url = sanitizeText(data.linkedinUrl || "", 300);
-      if (data.githubUrl !== undefined) updatePayload.github_url = sanitizeText(data.githubUrl || "", 300);
+      if (data.linkedinUrl !== undefined) updatePayload.linkedin_url = sanitizeUrl(data.linkedinUrl);
+      if (data.githubUrl !== undefined) updatePayload.github_url = sanitizeUrl(data.githubUrl);
       if (data.photoUrl !== undefined) updatePayload.photo_url = data.photoUrl;
       if (data.displayOrder !== undefined) updatePayload.display_order = data.displayOrder;
       if (data.isActive !== undefined) updatePayload.is_active = data.isActive;

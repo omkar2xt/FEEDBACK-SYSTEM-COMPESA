@@ -727,12 +727,16 @@ export async function submitMultiYearFeedback(input: MultiYearResponseInput): Pr
       const sentiment = overallRating >= 4 ? "Positive" : overallRating <= 2 ? "Negative" : "Neutral";
       const messageText = input.answers.map((a) => typeof a.answerValue === "string" ? sanitizeText(a.answerValue, 2000) : JSON.stringify(a.answerValue)).join(" | ") || "Feedback submitted";
 
+      const isValidUUID = (id: any) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const dbYearId = isValidUUID(targetYearId) ? targetYearId : null;
+      const dbSessionId = isValidUUID(targetSessionId) ? targetSessionId : null;
+
       // 1. Insert into Supabase 'responses' table
       const { data: resp, error: respErr } = await supabase
         .from("responses")
         .insert({
-          session_id: targetSessionId,
-          year_id: targetYearId,
+          session_id: dbSessionId,
+          year_id: dbYearId,
           student_name: cleanStudentName,
           division: cleanDivision,
           roll_no: cleanRollNo,

@@ -449,6 +449,8 @@ export async function updateSession(id: string, data: Partial<SessionItem>): Pro
 export async function deleteSession(id: string): Promise<boolean> {
   if (isSupabaseConfigured()) {
     try {
+      await supabase.from("responses").update({ session_id: null }).eq("session_id", id);
+      await supabase.from("feedback").update({ session_id: null }).eq("session_id", id);
       const { error } = await supabase.from("sessions").delete().eq("id", id);
       if (!error) return true;
     } catch {}

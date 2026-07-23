@@ -73,16 +73,28 @@ export function CoordinatorManager() {
     setShowModal(true);
   };
 
+  const formatUrl = (url?: string) => {
+    if (!url?.trim()) return "";
+    const t = url.trim();
+    return t.startsWith("http://") || t.startsWith("https://") ? t : `https://${t}`;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim()) return;
 
     setSaving(true);
+    const cleanPayload = {
+      ...formData,
+      linkedinUrl: formatUrl(formData.linkedinUrl),
+      githubUrl: formatUrl(formData.githubUrl)
+    };
+
     try {
       if (editingId) {
-        await updateCoordinator(editingId, formData);
+        await updateCoordinator(editingId, cleanPayload);
       } else {
-        await createCoordinator(formData);
+        await createCoordinator(cleanPayload);
       }
       setShowModal(false);
       await loadData();
@@ -174,12 +186,12 @@ export function CoordinatorManager() {
                   </td>
                   <td className="px-4 py-3 text-xs space-x-2">
                     {coord.linkedinUrl && (
-                      <a href={coord.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                      <a href={formatUrl(coord.linkedinUrl)} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
                         LinkedIn
                       </a>
                     )}
                     {coord.githubUrl && (
-                      <a href={coord.githubUrl} target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:underline">
+                      <a href={formatUrl(coord.githubUrl)} target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:underline">
                         GitHub
                       </a>
                     )}

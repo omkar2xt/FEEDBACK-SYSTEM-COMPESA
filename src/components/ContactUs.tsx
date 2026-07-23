@@ -181,7 +181,11 @@ export function ContactUs({ onStartFeedback, onBack }: ContactUsProps) {
                   <div className="mt-5 flex items-center gap-2 border-t border-white/10 pt-4">
                     {coordinator.linkedinUrl && (
                       <a
-                        href={coordinator.linkedinUrl}
+                        href={
+                          coordinator.linkedinUrl.startsWith("http://") || coordinator.linkedinUrl.startsWith("https://")
+                            ? coordinator.linkedinUrl
+                            : `https://${coordinator.linkedinUrl.trim()}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-blue-400/30 bg-blue-400/10 py-2 text-xs font-semibold text-blue-300 transition hover:bg-blue-400/20 hover:text-white"
@@ -192,7 +196,11 @@ export function ContactUs({ onStartFeedback, onBack }: ContactUsProps) {
 
                     {coordinator.githubUrl && (
                       <a
-                        href={coordinator.githubUrl}
+                        href={
+                          coordinator.githubUrl.startsWith("http://") || coordinator.githubUrl.startsWith("https://")
+                            ? coordinator.githubUrl
+                            : `https://${coordinator.githubUrl.trim()}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/60 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:text-white"
